@@ -77,6 +77,7 @@
 #define WIN_INIT_FLAG_SCALABLE	    	1
 #define WIN_INIT_FLAG_NOBORDER	    	2
 #define WIN_INIT_FLAG_FULL_CPU_USAGE	4
+#define WIN_INIT_FLAG_SCREENFLIP	8
 
 enum 
 {
@@ -311,6 +312,7 @@ struct window_manager
 
     int             	screen_xsize;
     int             	screen_ysize;
+    int			screen_flipped;
 
     int		    	screen_lock_counter;
     int	            	screen_is_active;
@@ -376,7 +378,6 @@ struct window_manager
     int		    	fb_xpitch; //framebuffer xpitch
     int		    	fb_ypitch; //...
     int		    	fb_offset; //...
-    int			fb_landscape;
 #ifdef OPENGL
     int	       		gl_double_buffer;
 #ifdef UNIX
@@ -389,7 +390,7 @@ struct window_manager
     LPDIRECTDRAWSURFACE	lpDDSBack; //DirectDraw back surface (for win32)
 #endif
 #ifdef GDI
-    ulong           	gdi_bitmap_info[ 2048 ]; //GDI bitmap info (for win32)
+    ulong           	gdi_bitmap_info[ 512 ]; //GDI bitmap info (for win32)
 #endif
 #ifdef WIN
     HDC	            	hdc; //graphics content handler
@@ -400,6 +401,9 @@ struct window_manager
     int             	nCmdShow;
 #endif
 #ifdef WINCE
+    int 		hires;
+    int			vd; //video-driver
+    char		rfb[ 32 ]; //raw framebuffer info
     HDC             	hdc; //graphics content handler
     HINSTANCE       	hCurrentInst;
     HINSTANCE       	hPreviousInst;

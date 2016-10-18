@@ -182,6 +182,8 @@ int main( int argc, char *argv[] )
 	int flags = 0;
 	if( profile_get_int_value( KEY_NOBORDER, 0 ) != -1 ) 
 	    flags = WIN_INIT_FLAG_NOBORDER;
+	if( profile_get_int_value( KEY_SCREENFLIP, 0 ) != -1 ) 
+	    flags = WIN_INIT_FLAG_SCREENFLIP;
 	if( win_init( window_name, user_window_xsize, user_window_ysize, user_window_flags | flags, argc, argv, &wm ) == 0 )
 	{
 	    int sound_stream_error = 0;

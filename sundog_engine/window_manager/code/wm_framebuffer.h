@@ -8,6 +8,13 @@ void device_draw_line( int x1, int y1, int x2, int y2, COLOR color, window_manag
 {
     if( !wm->screen_is_active ) return;
 
+#ifdef WINCE
+    if( wm->vd == VIDEODRIVER_GDI )
+    {
+	color = ( color & 31 ) | ( ( color & ~63 ) >> 1 ); //RGB565 to RGB555
+    }
+#endif
+
     int fb_xpitch = FB_XPITCH;
     int fb_ypitch = FB_YPITCH;
 
@@ -63,6 +70,13 @@ void device_draw_box( int x, int y, int xsize, int ysize, COLOR color, window_ma
 {
     if( !wm->screen_is_active ) return;
 
+#ifdef WINCE
+    if( wm->vd == VIDEODRIVER_GDI )
+    {
+	color = ( color & 31 ) | ( ( color & ~63 ) >> 1 ); //RGB565 to RGB555
+    }
+#endif
+
     int fb_xpitch = FB_XPITCH;
     int fb_ypitch = FB_YPITCH;
 
@@ -85,15 +99,17 @@ void device_draw_box( int x, int y, int xsize, int ysize, COLOR color, window_ma
 	else
     */
 #endif
+	int add = fb_ypitch - xsize;
 	for( int cy = 0; cy < ysize; cy++ )
 	{
 	    COLORPTR size = ptr + xsize;
 	    while( ptr < size ) *ptr++ = color;
-	    ptr += fb_ypitch - xsize;
+	    ptr += add;
 	}
     }
     else
     {
+	int add = fb_ypitch - ( xsize * fb_xpitch );
 	for( int cy = 0; cy < ysize; cy++ )
 	{
 	    for( int cx = 0; cx < xsize; cx++ )
@@ -101,7 +117,7 @@ void device_draw_box( int x, int y, int xsize, int ysize, COLOR color, window_ma
 		*ptr = color;
 		ptr += fb_xpitch;
 	    }
-	    ptr += fb_ypitch - ( xsize * fb_xpitch );
+	    ptr += add;
 	}
     }
 }
@@ -118,36 +134,86 @@ void device_draw_bitmap(
     int fb_xpitch = FB_XPITCH;
     int fb_ypitch = FB_YPITCH;
 
-    int src_xs = img->xsize;
-    int src_ys = img->ysize;
-    COLORPTR data = (COLORPTR)img->data;
+    COLORPTR data = (COLORPTR)img->data; //Source
+    COLORPTR ptr = framebuffer + FB_OFFSET + dest_y * fb_ypitch + dest_x * fb_xpitch; //Destination
 
-    COLORPTR ptr = framebuffer + FB_OFFSET + dest_y * fb_ypitch + dest_x * fb_xpitch;
-    int bp = src_y * src_xs + src_x;
+    //Add offset:
+    int bp = src_y * img->xsize + src_x;
     data += bp;
+    
+    //Draw:
+    int data_add = img->xsize - dest_xs;
+#ifdef WINCE
+    if( wm->vd == VIDEODRIVER_GDI )
+    {
+	COLOR color;
+	if( fb_xpitch == 1 )
+	{
+	    int ptr_add = fb_ypitch - ( dest_xs * fb_xpitch );
+	    for( int cy = 0; cy < dest_ys; cy++ )
+	    {
+		COLORPTR size = ptr + dest_xs;
+		while( ptr < size ) 
+		{
+		    color = *data++;
+		    color = ( color & 31 ) | ( ( color & ~63 ) >> 1 ); //RGB565 to RGB555
+		    *ptr++ = color;
+		}
+		ptr += ptr_add;
+		data += data_add;
+	    }
+	}
+	else
+	{
+	    for( int cy = 0; cy < dest_ys; cy++ )
+	    {
+		int ptr_add = fb_ypitch - ( dest_xs * fb_xpitch );
+		int cx = dest_xs + 1;
+		while( --cx )
+		{
+		    color = *data;
+		    color = ( color & 31 ) | ( ( color & ~63 ) >> 1 ); //RGB565 to RGB555
+		    *ptr = color;
+		    ptr += fb_xpitch;
+		    data++;
+		}
+		ptr += ptr_add;
+		data += data_add;
+	    }
+	}
+    }
+    else
+#endif
+    {
+    
     if( fb_xpitch == 1 )
     {
+	int ptr_add = fb_ypitch - ( dest_xs * fb_xpitch );
 	for( int cy = 0; cy < dest_ys; cy++ )
 	{
 	    COLORPTR size = ptr + dest_xs;
 	    while( ptr < size ) *ptr++ = *data++;
-	    ptr += fb_ypitch - ( dest_xs * fb_xpitch );
-	    data += src_xs - dest_xs;
+	    ptr += ptr_add;
+	    data += data_add;
 	}
     }
     else
     {
 	for( int cy = 0; cy < dest_ys; cy++ )
 	{
-	    for( int cx = 0; cx < dest_xs; cx++ )
+	    int ptr_add = fb_ypitch - ( dest_xs * fb_xpitch );
+	    int cx = dest_xs + 1;
+	    while( --cx )
 	    {
 		*ptr = *data;
 		ptr += fb_xpitch;
 		data++;
 	    }
-	    ptr += fb_ypitch - ( dest_xs * fb_xpitch );
-	    data += src_xs - dest_xs;
+	    ptr += ptr_add;
+	    data += data_add;
 	}
+    }
+    
     }
 }
 
@@ -219,24 +285,46 @@ void device_redraw_framebuffer( window_manager *wm )
     }
     else
     {
-	/*if( SDL_MUSTLOCK( wm->sdl_screen ) ) 
-	{
-	    SDL_UnlockSurface( wm->sdl_screen );
-	}
-	SDL_UpdateRect( wm->sdl_screen, 0, 0, 0, 0 );
-	if( SDL_MUSTLOCK( wm->sdl_screen ) ) 
-	{
-    	    if( SDL_LockSurface( wm->sdl_screen ) < 0 ) 
-	    {
-		wm->screen_lock_counter = 0;
-	    }
-	    else
-	    {
-		framebuffer = (COLORPTR)wm->sdl_screen->pixels;
-	    }
-        }*/
-	dprint( "Screen locked!\n" );
+	dprint( "Can't redraw the framebuffer: screen locked!\n" );
     }
+#endif
+
+#if defined(WINCE) && defined(FRAMEBUFFER)
+    //WinCE virtual framebuffer:
+    if( wm->vd != VIDEODRIVER_GDI ) return;
+    if( framebuffer == 0 ) return;
+    if( wm->screen_changed == 0 ) return;
+    wm->screen_changed = 0;
+    int src_xsize = wm->screen_xsize;
+    int src_ysize = wm->screen_ysize;
+    if( wm->screen_flipped )
+    {
+	int ttt = src_xsize;
+	src_xsize = src_ysize;
+	src_ysize = ttt;
+    }
+    BITMAPINFO bi;
+    memset( &bi, 0, sizeof( BITMAPINFO ) );
+    bi.bmiHeader.biSize = sizeof( BITMAPINFOHEADER );
+    bi.bmiHeader.biWidth = src_xsize;
+    bi.bmiHeader.biHeight = -src_ysize;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = COLORBITS;
+    bi.bmiHeader.biCompression = BI_RGB;
+    StretchDIBits(
+        wm->hdc,
+        0, // Destination top left hand corner X Position
+        0, // Destination top left hand corner Y Position
+        GetSystemMetrics( SM_CXSCREEN ), // Destinations Width
+        GetSystemMetrics( SM_CYSCREEN ), // Desitnations height
+        0, // Source low left hand corner's X Position
+        0, // Source low left hand corner's Y Position
+        src_xsize,
+        src_ysize,
+        framebuffer, // Source's data
+	&bi, // Bitmap Info
+        DIB_RGB_COLORS,
+	SRCCOPY );
 #endif
 
 #ifdef PALMOS

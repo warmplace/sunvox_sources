@@ -62,6 +62,8 @@ int win_init(
     mem_set( wm->timers, sizeof( wm->timers ), 0 );
     wm->timers_num = 0;
 
+    wm->screen_flipped = 0;
+
     wm->screen_lock_counter = 0;
     wm->screen_is_active = 0;
     wm->screen_changed = 0;
@@ -86,7 +88,6 @@ int win_init(
     wm->fb_offset = 0;
     wm->fb_xpitch = 1;
     wm->fb_ypitch = 0;
-    wm->fb_landscape = 0;
 #ifdef OPENGL
     wm->gl_double_buffer = 1;
 #endif

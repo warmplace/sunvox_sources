@@ -29,8 +29,8 @@ ifeq ($(MAKECMDGOALS),win32)
 	-DWIN
 endif
 ifeq ($(MAKECMDGOALS),wince)
-    CC = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions -Wno-multichar
-    CXX = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions -Wno-multichar
+    CC = arm-mingw32ce-gcc $(CFLAGS) -fno-exceptions -Wno-multichar
+    CXX = arm-mingw32ce-gcc $(CFLAGS) -fno-exceptions -Wno-multichar
     TARGET_DEFINES = \
 	-DARCH_ARM \
 	-DWINCE
@@ -177,7 +177,7 @@ endif
 
 .SECONDEXPANSION:
 wince: $$(OBJECTS)
-	arm-wince-mingw32ce-windres resources/win_res.rc win_res.o
+	arm-mingw32ce-windres resources/win_res.rc win_res.o
 	$(CC) $(LDFLAGS) -o $(APPNAME).exe $(OBJECTS) win_res.o $(LIBS)
 
 ## ------------------------------------------ ##

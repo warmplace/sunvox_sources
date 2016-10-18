@@ -2728,7 +2728,7 @@ int popup_handler( sundog_event *evt, window_manager *wm )
 	    retval = 1;
 	    break;
 	case EVT_MOUSEBUTTONUP:
-	    if( data->current_selected >= 0 )
+	    if( data->current_selected >= 0 && evt->key == MOUSE_BUTTON_LEFT )
 	    {
 		//Successful selection:
 		//win->action_result = data->current_selected;

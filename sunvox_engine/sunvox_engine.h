@@ -43,6 +43,8 @@ struct sunvox_pattern
     int		    ysize;
 
     uint16	    icon[ 16 ]; //Pattern icon 16x16
+    uchar	    fg[ 3 ];	//Foreground color
+    uchar	    bg[ 3 ];	//Background color
 };
 
 #define SUNVOX_PATTERN_FLAG_CLONE	1

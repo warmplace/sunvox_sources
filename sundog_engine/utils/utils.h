@@ -75,6 +75,7 @@ int sundog_mutex_unlock( sundog_mutex *mutex );
 #define KEY_FREQ		"frequency"
 #define KEY_WINDOWNAME		"windowname"
 #define KEY_NOBORDER		"noborder"
+#define KEY_VIDEODRIVER		"videodriver"
 
 struct profile_data
 {

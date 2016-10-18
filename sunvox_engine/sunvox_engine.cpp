@@ -226,6 +226,14 @@ void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 	int pat_flags = 0;
 	int pat_x = 0;
 	int pat_y = 0;
+	uchar pat_fg[ 3 ];
+	uchar pat_bg[ 3 ];
+	pat_fg[ 0 ] = 0;
+	pat_fg[ 1 ] = 0;
+	pat_fg[ 2 ] = 0;
+	pat_bg[ 0 ] = 255;
+	pat_bg[ 1 ] = 255;
+	pat_bg[ 2 ] = 255;
 
 	int s_flags = 0;
 	UTF8_CHAR s_name[ 32 ];
@@ -248,19 +256,21 @@ void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 	    g_block_data = 0;
 	    load_block( f );
 	    if( g_block_id == 0 ) break;
-	    if( g_block_id == 'BPM ' ) s->bpm = get_integer();
-	    if( g_block_id == 'SPED' ) s->speed = get_integer();
-	    if( g_block_id == 'NAME' ) { s->song_name = g_block_data; g_block_data = 0; }
-	    if( g_block_id == 'GVOL' ) s->net->global_volume = get_integer();
-	    if( g_block_id == 'PDTA' ) { pat_data = g_block_data; g_block_data = 0; }
-	    if( g_block_id == 'PLIN' ) pat_lines = get_integer();
-	    if( g_block_id == 'PCHN' ) pat_channels = get_integer();
-	    if( g_block_id == 'PYSZ' ) pat_ysize = get_integer();
-	    if( g_block_id == 'PICO' ) { pat_icon = g_block_data; g_block_data = 0; }
-	    if( g_block_id == 'PPAR' ) pat_parent = get_integer();
-	    if( g_block_id == 'PFFF' ) pat_flags = get_integer();
-	    if( g_block_id == 'PXXX' ) pat_x = get_integer();
-	    if( g_block_id == 'PYYY' ) pat_y = get_integer();
+	    if( g_block_id == 'BPM ' ) { s->bpm = get_integer(); goto bfound; }
+	    if( g_block_id == 'SPED' ) { s->speed = get_integer(); goto bfound; }
+	    if( g_block_id == 'NAME' ) { s->song_name = g_block_data; g_block_data = 0; goto bfound; }
+	    if( g_block_id == 'GVOL' ) { s->net->global_volume = get_integer(); goto bfound; }
+	    if( g_block_id == 'PDTA' ) { pat_data = g_block_data; g_block_data = 0; goto bfound; }
+	    if( g_block_id == 'PLIN' ) { pat_lines = get_integer(); goto bfound; }
+	    if( g_block_id == 'PCHN' ) { pat_channels = get_integer(); goto bfound; }
+	    if( g_block_id == 'PYSZ' ) { pat_ysize = get_integer(); goto bfound; }
+	    if( g_block_id == 'PICO' ) { pat_icon = g_block_data; g_block_data = 0; goto bfound; }
+	    if( g_block_id == 'PPAR' ) { pat_parent = get_integer(); goto bfound; }
+	    if( g_block_id == 'PFFF' ) { pat_flags = get_integer(); goto bfound; }
+	    if( g_block_id == 'PXXX' ) { pat_x = get_integer(); goto bfound; }
+	    if( g_block_id == 'PYYY' ) { pat_y = get_integer(); goto bfound; }
+	    if( g_block_id == 'PFGC' ) { mem_copy( pat_fg, g_block_data, 3 ); goto bfound; }
+	    if( g_block_id == 'PBGC' ) { mem_copy( pat_bg, g_block_data, 3 ); goto bfound; }
 	    if( g_block_id == 'PEND' )
 	    {
 		//End of pattern. Create it:
@@ -296,15 +306,18 @@ void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 			pat->data_xsize = pat_channels;
 			pat->data_ysize = pat_lines;
 			mem_copy( pat->icon, pat_icon, 32 );
+			mem_copy( pat->fg, pat_fg, 3 );
+			mem_copy( pat->bg, pat_bg, 3 );
 			mem_free( pat_icon );
 			pat->ysize = pat_ysize;
 		    }
 		}
 		pat_icon = 0;
 		pat_parent = -1;
+		goto bfound;
 	    }
-	    if( g_block_id == 'SFFF' ) s_flags = get_integer();
-	    if( g_block_id == 'SNAM' ) mem_copy( s_name, g_block_data, 32 );
+	    if( g_block_id == 'SFFF' ) { s_flags = get_integer(); goto bfound; }
+	    if( g_block_id == 'SNAM' ) { mem_copy( s_name, g_block_data, 32 ); goto bfound; }
 	    if( g_block_id == 'STYP' )
 	    {
 		//Synth's type loaded. Try to find pointer to this synth:
@@ -321,13 +334,14 @@ void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 		    }
 		}
 		else s_synth = 0;
+		goto bfound;
 	    }
-	    if( g_block_id == 'SFIN' ) s_finetune = get_integer();
-	    if( g_block_id == 'SREL' ) s_relative_note = get_integer();
-	    if( g_block_id == 'SXXX' ) s_x = get_integer();
-	    if( g_block_id == 'SYYY' ) s_y = get_integer();
-	    if( g_block_id == 'SLNK' ) { s_links = (int*)g_block_data; g_block_data = 0; }
-	    if( g_block_id == 'CVAL' ) s_ctls[ c_num++ ] = get_integer();
+	    if( g_block_id == 'SFIN' ) { s_finetune = get_integer(); goto bfound; }
+	    if( g_block_id == 'SREL' ) { s_relative_note = get_integer(); goto bfound; }
+	    if( g_block_id == 'SXXX' ) { s_x = get_integer(); goto bfound; }
+	    if( g_block_id == 'SYYY' ) { s_y = get_integer(); goto bfound; }
+	    if( g_block_id == 'SLNK' ) { s_links = (int*)g_block_data; g_block_data = 0; goto bfound; }
+	    if( g_block_id == 'CVAL' ) { s_ctls[ c_num++ ] = get_integer(); goto bfound; }
 	    if( g_block_id == 'CHNK' ) 
 	    {
 		chunks_num = get_integer();
@@ -335,18 +349,21 @@ void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 		chunk_flags = (int*)MEM_NEW( HEAP_DYNAMIC, chunks_num * sizeof( int ) );
 		mem_set( chunks, chunks_num * sizeof( char* ), 0 );
 		mem_set( chunk_flags, chunks_num * sizeof( int ), 0 );
+		goto bfound;
 	    }
-	    if( g_block_id == 'CHNM' ) chunk_num = get_integer();
+	    if( g_block_id == 'CHNM' ) { chunk_num = get_integer(); goto bfound; }
 	    if( g_block_id == 'CHDT' )
 	    {
 		//Get chunk data:
 		chunks[ chunk_num ] = (char*)g_block_data; 
 		g_block_data = 0;
+		goto bfound;
 	    }
 	    if( g_block_id == 'CHFF' )
 	    {
 		//Get chunk flags:
 		chunk_flags[ chunk_num ] = get_integer();
+		goto bfound;
 	    }
 	    if( g_block_id == 'SEND' )
 	    {
@@ -419,6 +436,7 @@ void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 		s_flags = 0;
 		c_num = 0;
 	    }
+bfound:
 	    if( g_block_data )
 	    {
 		mem_free( g_block_data );
@@ -526,6 +544,8 @@ void sunvox_save_song( const UTF8_CHAR *name, sunvox_engine *s )
 		    save_block( 'PLIN', 4, &s->pats[ i ]->lines, f );
 		    save_block( 'PYSZ', 4, &s->pats[ i ]->ysize, f );
 		    save_block( 'PICO', 32, s->pats[ i ]->icon, f );
+		    save_block( 'PFGC', 3, s->pats[ i ]->fg, f );
+		    save_block( 'PBGC', 3, s->pats[ i ]->bg, f );
 		}
 		else
 		{
@@ -623,12 +643,12 @@ int sunvox_load_synth( int x, int y, const UTF8_CHAR *name, sunvox_engine *s )
 	    g_block_data = 0;
 	    load_block( f );
 	    if( g_block_id == 0 ) break;
-	    if( g_block_id == 'SSYN' ) {}
-	    if( g_block_id == 'VERS' ) {}
-	    if( g_block_id == 'SNAM' ) { s_name = g_block_data; g_block_data = 0; }
-	    if( g_block_id == 'SFFF' ) flags = get_integer();
-	    if( g_block_id == 'SFIN' ) finetune = get_integer();
-	    if( g_block_id == 'SREL' ) relative = get_integer();
+	    if( g_block_id == 'SSYN' ) { goto bfound2; }
+	    if( g_block_id == 'VERS' ) { goto bfound2; }
+	    if( g_block_id == 'SNAM' ) { s_name = g_block_data; g_block_data = 0; goto bfound2; }
+	    if( g_block_id == 'SFFF' ) { flags = get_integer(); goto bfound2; }
+	    if( g_block_id == 'SFIN' ) { finetune = get_integer(); goto bfound2; }
+	    if( g_block_id == 'SREL' ) { relative = get_integer(); goto bfound2; }
 	    if( g_block_id == 'STYP' )
 	    {
 		for( int ss = 0; ss < g_synths_num; ss++ )
@@ -640,20 +660,23 @@ int sunvox_load_synth( int x, int y, const UTF8_CHAR *name, sunvox_engine *s )
 			break;
 		    }
 		}
+		goto bfound2;
 	    }
-	    if( g_block_id == 'CVAL' ) s_ctls[ c_num++ ] = get_integer();
+	    if( g_block_id == 'CVAL' ) { s_ctls[ c_num++ ] = get_integer(); goto bfound2; }
 	    if( g_block_id == 'CHNK' ) 
 	    {
 		chunks_num = get_integer();
 		chunks = (char**)MEM_NEW( HEAP_DYNAMIC, chunks_num * sizeof( char* ) );
 		mem_set( chunks, chunks_num * sizeof( char* ), 0 );
+		goto bfound2;
 	    }
-	    if( g_block_id == 'CHNM' ) chunk_num = get_integer();
+	    if( g_block_id == 'CHNM' ) { chunk_num = get_integer(); goto bfound2; }
 	    if( g_block_id == 'CHDT' )
 	    {
 		//Get chunk data:
 		chunks[ chunk_num ] = (char*)g_block_data; 
 		g_block_data = 0;
+		goto bfound2;
 	    }
 	    if( g_block_id == 'SEND' )
 	    {
@@ -680,6 +703,7 @@ int sunvox_load_synth( int x, int y, const UTF8_CHAR *name, sunvox_engine *s )
 		}
 		psynth_synth_setup_finished( retval, s->net );
 	    }
+bfound2:
 	    if( g_block_data )
 	    {
 		mem_free( g_block_data );
@@ -1097,6 +1121,12 @@ int sunvox_new_pattern( int lines, int channels, int x, int y, sunvox_engine *s 
     {
 	for( int i = 0; i < 8; i++ ) pat->icon[ 15 - i ] = pat->icon[ i ];
     }
+    pat->fg[ 0 ] = 0;
+    pat->fg[ 1 ] = 0;
+    pat->fg[ 2 ] = 0;
+    pat->bg[ 0 ] = 255;
+    pat->bg[ 1 ] = 255;
+    pat->bg[ 2 ] = 255;
 
     for( int i = 0; i < MAX_PATTERN_CHANNELS; i++ ) pat_info->channel_status[ i ] = 0xFF;
     return p;

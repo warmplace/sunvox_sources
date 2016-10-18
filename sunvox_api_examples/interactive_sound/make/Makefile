@@ -46,6 +46,7 @@ ifeq ($(MAKECMDGOALS),wince)
 	-DCOLOR16BITS \
 	-DDIRECTDRAW \
 	-DRGB565 \
+	-DGDI \
 	-DSTYPE_INT16
 endif
 

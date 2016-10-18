@@ -371,6 +371,8 @@ int profile_add_value( const UTF8_CHAR *key, const UTF8_CHAR *value, profile_dat
 
     if( p == 0 ) p = &g_profile;
 
+    //dprint( "NEW VALUE: %s => %s\n", key, value );
+
     if( key )
     {
 	for( rv = 0; rv < p->num; rv++ )
@@ -461,7 +463,7 @@ void profile_close( profile_data *p )
     }
 }
 
-#define PROFILE_KEY_CHAR( cc ) ( !( cc == ' ' || cc == 0x09 || cc == 0x0A || cc == 0x0D || cc == -1 ) )
+#define PROFILE_KEY_CHAR( cc ) ( !( cc < 0x21 || ptr >= size ) )
 
 void profile_load( const UTF8_CHAR *filename, profile_data *p )
 {
@@ -476,66 +478,105 @@ void profile_load( const UTF8_CHAR *filename, profile_data *p )
     profile_close( p );
     profile_new( p );
 
-    V3_FILE f = v3_open( filename, "rb" );
-    if( f )
+    int size = v3_get_file_size( filename );
+    if( size == 0 ) return;
+    uchar *f = (uchar*)MEM_NEW( HEAP_DYNAMIC, size + 1 );
+    V3_FILE fp = v3_open( filename, "rb" );
+    if( fp )
     {
-	int c;
-	char comment_mode = 0;
-	char key_mode = 0;
-	while( 1 )
-	{
-	    c = v3_getc( f );
-	    if( c == -1 ) break; //EOF
-	    if( c == 0xD || c == 0xA )
+	v3_read( f, 1, size, fp );
+	v3_close( fp );
+    }
+    
+    int ptr = 0;
+    int c;
+    char comment_mode = 0;
+    char key_mode = 0;
+    while( ptr < size )
+    {
+        c = f[ ptr ];
+        if( c == 0xD || c == 0xA )
+        {
+    	    comment_mode = 0; //Reset comment mode at the end of line
+	    if( key_mode > 0 )
 	    {
-		comment_mode = 0; //Reset comment mode at the end of line
-		key_mode = 0;
+		profile_add_value( str1, str2, p );
 	    }
-	    if( comment_mode == 0 )
+	    key_mode = 0;
+	}
+	if( comment_mode == 0 )
+	{
+	    if( f[ ptr ] == '/' && f[ ptr + 1 ] == '/' )
 	    {
-		if( c == '/' ) 
-		{
-		    comment_mode = 1; //Comments
-		    continue;
-		}
-		if( PROFILE_KEY_CHAR( c ) )
-		{
-		    if( key_mode == 0 )
+	        comment_mode = 1; //Comments
+		ptr += 2;
+	        continue;
+	    }
+	    if( PROFILE_KEY_CHAR( c ) )
+	    {
+	        if( key_mode == 0 )
+	        {
+	    	    //Get key name:
+		    str2[ 0 ] = 0;
+		    for( i = 0; i < 128; i++ )
 		    {
-			//Get key name:
+			if( !PROFILE_KEY_CHAR( f[ ptr ] ) ) 
+			{ 
+			    str1[ i ] = 0;
+			    ptr--;
+			    break; 
+			}
+		        str1[ i ] = f[ ptr ];
+			ptr++;
+		    }
+		    key_mode = 1;
+		}
+		else if( key_mode == 1 )
+		{
+		    //Get value:
+		    str2[ 0 ] = 0;
+		    if( f[ ptr ] == '"' )
+		    {
+			ptr++;
 			for( i = 0; i < 128; i++ )
 			{
-			    str1[ i ] = c;
-			    c = v3_getc( f );
-			    if( !PROFILE_KEY_CHAR( c ) ) 
+			    if( f[ ptr ] == '"' || ptr >= size ) 
 			    { 
-				str1[ i + 1 ] = 0; 
-				break; 
+			        str2[ i ] = 0;
+			        break; 
 			    }
+			    str2[ i ] = f[ ptr ];
+			    ptr++;
 			}
-			key_mode = 1;
 		    }
 		    else
 		    {
-			//Get value:
-			str2[ 0 ] = 0;
 			for( i = 0; i < 128; i++ )
 			{
-			    str2[ i ] = c;
-			    c = v3_getc( f );
-			    if( c == 0xD || c == 0xA || c == -1 ) 
+			    if( f[ ptr ] < 0x21 || ptr >= size ) 
 			    { 
-				str2[ i + 1 ] = 0; 
-				break; 
+			        str2[ i ] = 0;
+				ptr--;
+			        break; 
 			    }
+			    str2[ i ] = f[ ptr ];
+			    ptr++;
 			}
-			profile_add_value( str1, str2, p );
-			key_mode = 0;
 		    }
+		    key_mode = 2;
 		}
 	    }
 	}
-	v3_close( f );
+	ptr++;
+    }
+    if( key_mode > 0 )
+    {
+	profile_add_value( str1, str2, p );
+    }
+    
+    if( f )
+    {
+	mem_free( f );
     }
 }
 

@@ -9,7 +9,32 @@
 
 #include <windows.h>
 #include <wingdi.h>
+#include <aygshell.h>
 #include "win_res.h" //(IDI_ICON1) Must be defined in your project
+
+enum
+{
+    VIDEODRIVER_NONE = 0,
+    VIDEODRIVER_GAPI,
+    VIDEODRIVER_RAW,
+    VIDEODRIVER_DDRAW,
+    VIDEODRIVER_GDI
+};
+
+#define GETRAWFRAMEBUFFER   0x00020001
+#define FORMAT_565 1
+#define FORMAT_555 2
+#define FORMAT_OTHER 3
+typedef struct _RawFrameBufferInfo
+{
+   WORD wFormat;
+   WORD wBPP;
+   VOID *pFramePointer;
+   int  cxStride;
+   int  cyStride;
+   int  cxPixels;
+   int  cyPixels;
+} RawFrameBufferInfo;
 
 WCHAR *className = L"SunDogEngine";
 const UTF8_CHAR *windowName = "SunDogEngine_winCE";
@@ -36,21 +61,19 @@ int Win32CreateWindow( HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lp
     COLORPTR framebuffer = 0;
 #endif
 
-#ifdef DIRECTDRAW
-    #include "gx_loader.h"
-    tGXOpenDisplay GXOpenDisplay = 0;
-    tGXCloseDisplay GXCloseDisplay = 0;
-    tGXBeginDraw GXBeginDraw = 0;
-    tGXEndDraw GXEndDraw = 0;
-    tGXOpenInput GXOpenInput = 0;
-    tGXCloseInput GXCloseInput = 0;
-    tGXGetDisplayProperties GXGetDisplayProperties = 0;
-    tGXGetDefaultKeys GXGetDefaultKeys = 0;
-    tGXSuspend GXSuspend = 0;
-    tGXResume GXResume = 0;
-    tGXSetViewport GXSetViewport = 0;
-    GXDisplayProperties gx_dp;
-#endif
+#include "gx_loader.h"
+tGXOpenDisplay GXOpenDisplay = 0;
+tGXCloseDisplay GXCloseDisplay = 0;
+tGXBeginDraw GXBeginDraw = 0;
+tGXEndDraw GXEndDraw = 0;
+tGXOpenInput GXOpenInput = 0;
+tGXCloseInput GXCloseInput = 0;
+tGXGetDisplayProperties GXGetDisplayProperties = 0;
+tGXGetDefaultKeys GXGetDefaultKeys = 0;
+tGXSuspend GXSuspend = 0;
+tGXResume GXResume = 0;
+tGXSetViewport GXSetViewport = 0;
+GXDisplayProperties gx_dp;
 
 typedef void (*tSystemIdleTimerReset)( void );
 tSystemIdleTimerReset SD_SystemIdleTimerReset = 0;
@@ -70,126 +93,186 @@ DWORD WINAPI SystemIdleTimerProc( LPVOID lpParameter )
 int device_start( const char *windowname, int xsize, int ysize, int flags, window_manager *wm )
 {
     int retval = 0;
+    FARPROC proc;
 
     if( windowname ) windowName = windowname;
     current_wm = wm;
     win_flags = flags;
+
+    wm->gdi_bitmap_info[ 0 ] = 888;
 	
     //Get OS version:
     OSVERSIONINFO ver;
     GetVersionEx( &ver );
     wm->os_version = ver.dwMajorVersion;
 
-#ifdef GDI
-    wm->gdi_bitmap_info[ 0 ] = 888;
-    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
-    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
-    if( xsize > GetSystemMetrics( SM_CXSCREEN ) ) xsize = GetSystemMetrics( SM_CXSCREEN );
-    if( ysize > GetSystemMetrics( SM_CYSCREEN ) - 64 ) ysize = GetSystemMetrics( SM_CYSCREEN ) - 64;
-#endif
-
-#ifdef DIRECTDRAW
-    xsize = GetSystemMetrics( SM_CXSCREEN );
-    ysize = GetSystemMetrics( SM_CYSCREEN );
-    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
-    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
-#endif
-
-    wm->screen_xsize = xsize;
-    wm->screen_ysize = ysize;
-
-#ifdef DIRECTDRAW
-    HMODULE gapiLibrary;
-    FARPROC proc;
-    gapiLibrary = LoadLibrary( TEXT( "gx.dll" ) );
-    if( gapiLibrary == 0 ) 
+    UTF8_CHAR *vd_str = profile_get_str_value( KEY_VIDEODRIVER, 0 );
+    wm->vd = VIDEODRIVER_GAPI;
+    if( vd_str )
     {
-	MessageBox( hWnd, L"GX not found", L"Error", MB_OK );
-	dprint( "ERROR: GX.dll not found\n" );
-	return 1;
-    }
-    IMPORT( gapiLibrary, proc, tGXOpenDisplay, "?GXOpenDisplay@@YAHPAUHWND__@@K@Z", GXOpenDisplay );
-    IMPORT( gapiLibrary, proc, tGXGetDisplayProperties, "?GXGetDisplayProperties@@YA?AUGXDisplayProperties@@XZ", GXGetDisplayProperties );
-    IMPORT( gapiLibrary, proc, tGXOpenInput,"?GXOpenInput@@YAHXZ", GXOpenInput );
-    IMPORT( gapiLibrary, proc, tGXCloseDisplay, "?GXCloseDisplay@@YAHXZ", GXCloseDisplay );
-    IMPORT( gapiLibrary, proc, tGXBeginDraw, "?GXBeginDraw@@YAPAXXZ", GXBeginDraw );
-    IMPORT( gapiLibrary, proc, tGXEndDraw, "?GXEndDraw@@YAHXZ", GXEndDraw );
-    IMPORT( gapiLibrary, proc, tGXCloseInput,"?GXCloseInput@@YAHXZ", GXCloseInput );
-    IMPORT( gapiLibrary, proc, tGXSetViewport,"?GXSetViewport@@YAHKKKK@Z", GXSetViewport );
-    IMPORT( gapiLibrary, proc, tGXSuspend, "?GXSuspend@@YAHXZ", GXSuspend );
-    IMPORT( gapiLibrary, proc, tGXResume, "?GXResume@@YAHXZ", GXResume );
-    if( GXOpenDisplay == 0 ) retval = 1;
-    if( GXGetDisplayProperties == 0 ) retval = 2;
-    if( GXOpenInput == 0 ) retval = 3;
-    if( GXCloseDisplay == 0 ) retval = 4;
-    if( GXBeginDraw == 0 ) retval = 5;
-    if( GXEndDraw == 0 ) retval = 6;
-    if( GXCloseInput == 0 ) retval = 7;
-    if( GXSuspend == 0 ) retval = 8;
-    if( GXResume == 0 ) retval = 9;
-    if( retval )
-    {
-	MessageBox( hWnd, L"Some GX functions not found", L"Error", MB_OK );
-	dprint( "ERROR: some GX functions not found (%d)\n", retval );
-	return retval;
-    }
-#endif
-
-    Win32CreateWindow( wm->hCurrentInst, wm->hPreviousInst, (char*)wm->lpszCmdLine, wm->nCmdShow ); //create main window
-
-#ifdef DIRECTDRAW
-    wm->gx_suspended = 0;
-    if( GXOpenDisplay( hWnd, GX_FULLSCREEN ) == 0 )
-    {
-	MessageBox( hWnd, L"Can't open GAPI display", L"Error", MB_OK );
-	dprint( "ERROR: Can't open GAPI display\n" );
-	return 1;
+	dprint( "Videodriver: %s\n", vd_str );
+	if( mem_strcmp( vd_str, "raw" ) == 0 )
+	    wm->vd = VIDEODRIVER_RAW;
+	if( mem_strcmp( vd_str, "gdi" ) == 0 )
+	    wm->vd = VIDEODRIVER_GDI;
     }
     else
     {
-	gx_dp = GXGetDisplayProperties();
-	dprint( "Width: %d\n", gx_dp.cxWidth );
-	dprint( "Height: %d\n", gx_dp.cyHeight );
-	dprint( "cbxPitch: %d\n", gx_dp.cbxPitch );
-	dprint( "cbyPitch: %d\n", gx_dp.cbyPitch );
-	dprint( "cBPP: %d\n", gx_dp.cBPP );
-	if( gx_dp.ffFormat & kfLandscape ) dprint( "kfLandscape\n" );
-	if( gx_dp.ffFormat & kfPalette ) dprint( "kfPalette\n" );
-	if( gx_dp.ffFormat & kfDirect ) dprint( "kfDirect\n" );
-	if( gx_dp.ffFormat & kfDirect555 ) dprint( "kfDirect555\n" );
-	if( gx_dp.ffFormat & kfDirect565 ) dprint( "kfDirect565\n" );
-	if( gx_dp.ffFormat & kfDirect888 ) dprint( "kfDirect888\n" );
-	if( gx_dp.ffFormat & kfDirect444 ) dprint( "kfDirect444\n" );
-	if( gx_dp.ffFormat & kfDirectInverted ) dprint( "kfDirectInverted\n" );
-	wm->fb_xpitch = gx_dp.cbxPitch;
-	wm->fb_ypitch = gx_dp.cbyPitch;
+	dprint( "No videodriver selected. Default: gapi\n" );
+    }
+
+    //Get real screen resolution:
+    xsize = GetSystemMetrics( SM_CXSCREEN );
+    ysize = GetSystemMetrics( SM_CYSCREEN );
+    if( xsize > 320 && ysize > 320 )
+	wm->hires = 1;
+    else
+	wm->hires = 0;
+
+    if( flags & WIN_INIT_FLAG_SCREENFLIP ) wm->screen_flipped = 1;
+    if( ysize > xsize ) wm->screen_flipped ^= 1;
+
+    //Get user defined resolution:
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
+
+    //Save it:
+    wm->screen_xsize = xsize;
+    wm->screen_ysize = ysize;
+    
+    if( wm->vd == VIDEODRIVER_GAPI )
+    {
+	HMODULE gapiLibrary;
+	FARPROC proc;
+	gapiLibrary = LoadLibrary( TEXT( "gx.dll" ) );
+	if( gapiLibrary == 0 ) 
+	{
+	    MessageBox( hWnd, L"GX not found", L"Error", MB_OK );
+	    dprint( "ERROR: GX.dll not found\n" );
+	    return 1;
+	}
+	IMPORT( gapiLibrary, proc, tGXOpenDisplay, "?GXOpenDisplay@@YAHPAUHWND__@@K@Z", GXOpenDisplay );
+	IMPORT( gapiLibrary, proc, tGXGetDisplayProperties, "?GXGetDisplayProperties@@YA?AUGXDisplayProperties@@XZ", GXGetDisplayProperties );
+	IMPORT( gapiLibrary, proc, tGXOpenInput,"?GXOpenInput@@YAHXZ", GXOpenInput );
+	IMPORT( gapiLibrary, proc, tGXCloseDisplay, "?GXCloseDisplay@@YAHXZ", GXCloseDisplay );
+	IMPORT( gapiLibrary, proc, tGXBeginDraw, "?GXBeginDraw@@YAPAXXZ", GXBeginDraw );
+	IMPORT( gapiLibrary, proc, tGXEndDraw, "?GXEndDraw@@YAHXZ", GXEndDraw );
+	IMPORT( gapiLibrary, proc, tGXCloseInput,"?GXCloseInput@@YAHXZ", GXCloseInput );
+	IMPORT( gapiLibrary, proc, tGXSetViewport,"?GXSetViewport@@YAHKKKK@Z", GXSetViewport );
+	IMPORT( gapiLibrary, proc, tGXSuspend, "?GXSuspend@@YAHXZ", GXSuspend );
+	IMPORT( gapiLibrary, proc, tGXResume, "?GXResume@@YAHXZ", GXResume );
+	if( GXOpenDisplay == 0 ) retval = 1;
+	if( GXGetDisplayProperties == 0 ) retval = 2;
+	if( GXOpenInput == 0 ) retval = 3;
+	if( GXCloseDisplay == 0 ) retval = 4;
+	if( GXBeginDraw == 0 ) retval = 5;
+	if( GXEndDraw == 0 ) retval = 6;
+	if( GXCloseInput == 0 ) retval = 7;
+	if( GXSuspend == 0 ) retval = 8;
+	if( GXResume == 0 ) retval = 9;
+	if( retval )
+	{
+	    MessageBox( hWnd, L"Some GX functions not found", L"Error", MB_OK );
+	    dprint( "ERROR: some GX functions not found (%d)\n", retval );
+	    return retval;
+	}
+    }
+
+    Win32CreateWindow( wm->hCurrentInst, wm->hPreviousInst, (char*)wm->lpszCmdLine, wm->nCmdShow ); //create main window
+
+    if( wm->vd == VIDEODRIVER_GAPI )
+    {
+	wm->gx_suspended = 0;
+	if( GXOpenDisplay( hWnd, GX_FULLSCREEN ) == 0 )
+	{
+	    MessageBox( hWnd, L"Can't open GAPI display", L"Error", MB_OK );
+	    dprint( "ERROR: Can't open GAPI display\n" );
+	    return 1;
+	}
+	else
+        {
+	    gx_dp = GXGetDisplayProperties();
+	    dprint( "GAPI Width: %d\n", gx_dp.cxWidth );
+	    dprint( "GAPI Height: %d\n", gx_dp.cyHeight );
+	    {
+		//Screen resolution must be less or equal to GAPI resolution:
+		if( wm->screen_xsize >= gx_dp.cxWidth )
+		    wm->screen_xsize = gx_dp.cxWidth;
+		if( wm->screen_ysize >= gx_dp.cyHeight )
+		    wm->screen_ysize = gx_dp.cyHeight;
+	    }
+	    dprint( "GAPI cbxPitch: %d\n", gx_dp.cbxPitch );
+	    dprint( "GAPI cbyPitch: %d\n", gx_dp.cbyPitch );
+	    dprint( "GAPI cBPP: %d\n", gx_dp.cBPP );
+	    if( gx_dp.ffFormat & kfLandscape ) dprint( "kfLandscape\n" );
+	    if( gx_dp.ffFormat & kfPalette ) dprint( "kfPalette\n" );
+	    if( gx_dp.ffFormat & kfDirect ) dprint( "kfDirect\n" );
+	    if( gx_dp.ffFormat & kfDirect555 ) dprint( "kfDirect555\n" );
+	    if( gx_dp.ffFormat & kfDirect565 ) dprint( "kfDirect565\n" );
+	    if( gx_dp.ffFormat & kfDirect888 ) dprint( "kfDirect888\n" );
+	    if( gx_dp.ffFormat & kfDirect444 ) dprint( "kfDirect444\n" );
+	    if( gx_dp.ffFormat & kfDirectInverted ) dprint( "kfDirectInverted\n" );
+	    wm->fb_xpitch = gx_dp.cbxPitch;
+	    wm->fb_ypitch = gx_dp.cbyPitch;
+	    wm->fb_xpitch /= COLORLEN;
+	    wm->fb_ypitch /= COLORLEN;
+    	    GXSetViewport( 0, gx_dp.cyHeight, 0, 0 );
+	    GXOpenInput();
+	}
+    }
+    else if( wm->vd == VIDEODRIVER_RAW )
+    {
+	RawFrameBufferInfo *rfb = (RawFrameBufferInfo*)wm->rfb;
+	HDC hdc = GetDC( NULL );
+	int rv = ExtEscape( hdc, GETRAWFRAMEBUFFER, 0, NULL, sizeof( RawFrameBufferInfo ), (char *)rfb );
+	ReleaseDC( NULL, hdc );
+	if( rv < 0 )
+	{
+	    MessageBox( hWnd, L"Can't open raw framebuffer", L"Error", MB_OK );
+	    dprint( "ERROR: Can't open raw framebuffer\n" );
+	    return rv;
+	}
+	dprint( "RFB wFormat:\n" );
+	if( rfb->wFormat == FORMAT_565 ) dprint( "FORMAT_565\n" );
+	else if( rfb->wFormat == FORMAT_555 ) dprint( "FORMAT_555\n" );
+	else 
+	{
+	    dprint( "%d\n", rfb->wFormat );
+	    MessageBox( hWnd, L"Can't open raw framebuffer", L"Error", MB_OK );
+	    return 1;
+	}
+	dprint( "RFB wBPP: %d\n", rfb->wBPP );
+	dprint( "RFB cxStride: %d\n", rfb->cxStride );
+	dprint( "RFB cyStride: %d\n", rfb->cyStride );
+	dprint( "RFB cxPixels: %d\n", rfb->cxPixels );
+	dprint( "RFB cyPixels: %d\n", rfb->cyPixels );
+	wm->fb_xpitch = rfb->cxStride;
+	wm->fb_ypitch = rfb->cyStride;
 	wm->fb_xpitch /= COLORLEN;
 	wm->fb_ypitch /= COLORLEN;
-	//LANDSCAPE MODE ***********
-	//gx_dp.ffFormat |= kfLandscape;
-	if( wm->screen_ysize > wm->screen_xsize )
-	{
-	    wm->fb_offset = wm->fb_ypitch * ( wm->screen_ysize - 1 );
-	    int ttt = wm->fb_ypitch;
-	    wm->fb_ypitch = wm->fb_xpitch;
-	    wm->fb_xpitch = -ttt;
-	    wm->fb_landscape = 1;
-	    ttt = wm->screen_xsize; wm->screen_xsize = wm->screen_ysize; wm->screen_ysize = ttt;
-	}
-	//**************************
-    	GXSetViewport( 0, gx_dp.cyHeight, 0, 0 );
-	GXOpenInput();
     }
-#endif
+    else if( wm->vd == VIDEODRIVER_GDI )
+    {
+	//Create virtual framebuffer:
+	if( wm->hires )
+	{
+	    wm->screen_xsize /= 2;
+	    wm->screen_ysize /= 2;
+	}
+	framebuffer = (COLORPTR)MEM_NEW( HEAP_DYNAMIC, wm->screen_xsize * wm->screen_ysize * COLORLEN );
+	wm->fb_xpitch = 1;
+	wm->fb_ypitch = wm->screen_xsize;
+    }
 
-    //Create framebuffer:
-#ifndef DIRECTDRAW
-#ifdef FRAMEBUFFER
-    framebuffer = (COLORPTR)MEM_NEW( HEAP_DYNAMIC, wm->screen_xsize * wm->screen_ysize * COLORLEN );
-    wm->fb_xpitch = 1;
-    wm->fb_ypitch = wm->screen_xsize;
-#endif
-#endif
+    if( wm->screen_flipped )
+    {
+	//Flip the screen:
+	wm->fb_offset = wm->fb_ypitch * ( wm->screen_ysize - 1 );
+	int ttt = wm->fb_ypitch;
+	wm->fb_ypitch = wm->fb_xpitch;
+	wm->fb_xpitch = -ttt;
+	ttt = wm->screen_xsize; wm->screen_xsize = wm->screen_ysize; wm->screen_ysize = ttt;
+    }
 
     HMODULE coreLibrary;
     coreLibrary = LoadLibrary( TEXT( "coredll.dll" ) );
@@ -213,14 +296,12 @@ void device_end( window_manager *wm )
     if( systemIdleTimerThread )
 	CloseHandle( systemIdleTimerThread );
 
-#ifdef GDI
-#endif
+    if( wm->vd == VIDEODRIVER_GDI && framebuffer )
+    {
+	mem_free( framebuffer );
+    }
 
-#ifdef FRAMEBUFFER
-#ifndef DIRECTDRAW
-    mem_free( framebuffer );
-#endif
-#endif
+    SHFullScreen( hWnd, SHFS_SHOWTASKBAR | SHFS_SHOWSTARTICON | SHFS_SHOWSIPBUTTON );
 
     DestroyWindow( hWnd );
     Sleep( 500 );
@@ -265,10 +346,10 @@ uint16 win_key_to_sundog_key( uint16 vk )
 	case VK_F10: return KEY_F10; break;
 	case VK_F11: return KEY_F11; break;
 	case VK_F12: return KEY_F12; break;
-	case VK_UP: if( current_wm->fb_landscape == 0 ) return KEY_UP; else return KEY_RIGHT; break;
-	case VK_DOWN: if( current_wm->fb_landscape == 0 ) return KEY_DOWN; else return KEY_LEFT; break;
-	case VK_LEFT: if( current_wm->fb_landscape == 0 ) return KEY_LEFT; else return KEY_UP; break;
-	case VK_RIGHT: if( current_wm->fb_landscape == 0 ) return KEY_RIGHT; else return KEY_DOWN; break;
+	case VK_UP: if( current_wm->screen_flipped == 0 ) return KEY_UP; else return KEY_RIGHT; break;
+	case VK_DOWN: if( current_wm->screen_flipped == 0 ) return KEY_DOWN; else return KEY_LEFT; break;
+	case VK_LEFT: if( current_wm->screen_flipped == 0 ) return KEY_LEFT; else return KEY_UP; break;
+	case VK_RIGHT: if( current_wm->screen_flipped == 0 ) return KEY_RIGHT; else return KEY_DOWN; break;
 	case VK_INSERT: return KEY_INSERT; break;
 	case VK_DELETE: return KEY_DELETE; break;
 	case VK_HOME: return KEY_HOME; break;
@@ -300,31 +381,24 @@ uint16 win_key_to_sundog_key( uint16 vk )
     return 0;
 }
 
-#ifdef GDI
-#define GET_WINDOW_COORDINATES \
-    /*Real coordinates -> window_manager coordinates*/\
-    x = lParam & 0xFFFF;\
-    y = lParam>>16;
-#endif
-
-#ifdef DIRECTDRAW
 #define GET_WINDOW_COORDINATES \
     /*Real coordinates -> window_manager coordinates*/\
     x = lParam & 0xFFFF;\
     y = lParam>>16; \
-    if( current_wm->fb_landscape ) \
+    if( current_wm->vd == VIDEODRIVER_GAPI || current_wm->vd == VIDEODRIVER_GDI ) \
+    { \
+	if( current_wm->hires ) \
+	{ \
+	    x /= 2; \
+	    y /= 2; \
+	} \
+    } \
+    if( current_wm->screen_flipped ) \
     { \
 	int ttt = x; \
 	x = ( current_wm->screen_xsize - 1 ) - y;\
 	y = ttt; \
     }
-    /*if( gx_dp.ffFormat & kfLandscape ) \
-    { \
-	int ttt = x; \
-	x = ( current_wm->screen_xsize - 1 ) - y;\
-	y = ttt; \
-    }*/
-#endif
 
 LRESULT APIENTRY
 WndProc(
@@ -348,15 +422,16 @@ WndProc(
 	    break;
 
 	case WM_DESTROY:
-#ifdef DIRECTDRAW
-	    GXCloseInput();
-	    GXCloseDisplay();
-#endif
+	    if( current_wm->vd == VIDEODRIVER_GAPI )
+	    {
+		GXCloseInput();
+		GXCloseDisplay();
+	    }
 	    PostQuitMessage( 0 );
 	    break;
 
 	case WM_SIZE:
-#ifndef DIRECTDRAW
+#ifndef FRAMEBUFFER
 	    if( LOWORD(lParam) != 0 && HIWORD(lParam) != 0 )
 	    {
 		current_wm->screen_xsize = (int) LOWORD(lParam);
@@ -384,28 +459,35 @@ WndProc(
 	    }
 	    break;
 
-#ifdef DIRECTDRAW
 	case WM_KILLFOCUS:
-	    if( current_wm->screen_lock_counter > 0 )
-		GXEndDraw();
-	    GXSuspend();
-	    current_wm->gx_suspended = 1;
+	    if( current_wm->vd == VIDEODRIVER_GAPI )
+	    {
+		if( current_wm->screen_lock_counter > 0 )
+		    GXEndDraw();
+		GXSuspend();
+	    }
+    	    current_wm->gx_suspended = 1;
 	    send_event( current_wm->root_win, EVT_SCREENUNFOCUS, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 	    break;
 	case WM_SETFOCUS:
 	    if( current_wm->gx_suspended )
 	    {
-		if( current_wm->screen_lock_counter > 0 )
+		if( current_wm->vd == VIDEODRIVER_GAPI )
 		{
-		    framebuffer = (COLORPTR)GXBeginDraw();
+		    if( current_wm->screen_lock_counter > 0 )
+		    {
+			framebuffer = (COLORPTR)GXBeginDraw();
+		    }
+		    GXResume();
 		}
-		GXResume();
     		current_wm->gx_suspended = 0;
 	    }
+	    //Hide taskbar and another system windows:
+	    SHFullScreen( hWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON );
+	    //Redraw all:
 	    send_event( current_wm->root_win, EVT_SCREENFOCUS, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 	    send_event( current_wm->root_win, EVT_DRAW, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 	    break;
-#endif
 
 	case 0x020A: //WM_MOUSEWHEEL
 	    GET_WINDOW_COORDINATES;
@@ -487,26 +569,26 @@ int Win32CreateWindow( HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lp
     UTF16_CHAR windowName_utf16[ 256 ];
     utf8_to_utf16( windowName_utf16, 256, windowName );
 
-    /* register window class */
+    //Register window class:
     wndClass.style = CS_HREDRAW | CS_VREDRAW;
     wndClass.lpfnWndProc = WndProc;
     wndClass.cbClsExtra = 0;
     wndClass.cbWndExtra = 0;
     wndClass.hInstance = hCurrentInst;
-    wndClass.hIcon = LoadIcon( hCurrentInst, MAKEINTRESOURCE(IDI_ICON1) );
+    wndClass.hIcon = LoadIcon( hCurrentInst, MAKEINTRESOURCE( IDI_ICON1 ) );
     wndClass.hCursor = LoadCursor( NULL, IDC_ARROW );
     wndClass.hbrBackground = (HBRUSH)GetStockObject( BLACK_BRUSH );
     wndClass.lpszMenuName = NULL;
     wndClass.lpszClassName = className;
     RegisterClass( &wndClass );
 
-    /* create window */
+    //Create window
     RECT Rect;
+#ifndef FRAMEBUFFER
     Rect.top = 0;
     Rect.bottom = current_wm->screen_ysize;
     Rect.left = 0;
     Rect.right = current_wm->screen_xsize;
-#ifdef GDI
     AdjustWindowRectEx( &Rect, WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX, 0, 0 );
     if( win_flags & WIN_INIT_FLAG_SCALABLE )
     {
@@ -530,8 +612,7 @@ int Win32CreateWindow( HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lp
 	    NULL, NULL, hCurrentInst, NULL
 	);
     }
-#endif //GDI
-#ifdef DIRECTDRAW
+#else
     hWnd = CreateWindow(
 	className, (const WCHAR*)windowName_utf16,
 	WS_VISIBLE,
@@ -539,11 +620,16 @@ int Win32CreateWindow( HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lp
 	GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ),
 	NULL, NULL, hCurrentInst, NULL
     );
-#endif //DIRECTDRAW
-    /* display window */
+#endif //FRAMEBUFFER
+
+    //Hide taskbar and another system windows:
+    SHFullScreen( hWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON );
+
+    //Display the window:
     ShowWindow( hWnd, nCmdShow );
     UpdateWindow( hWnd );
 
+    //Get DC:
     current_wm->hdc = GetDC( hWnd );
 
     return 0;
@@ -569,13 +655,13 @@ void device_screen_unlock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 1 && wm->gx_suspended == 0 )
     {
-#ifdef DIRECTDRAW
-	if( framebuffer )
+	if( current_wm->vd == VIDEODRIVER_GAPI )
 	{
-	    GXEndDraw();
-	    framebuffer = 0;
+	    if( framebuffer )
+	    {
+		GXEndDraw();
+	    }
 	}
-#endif //DIRECTDRAW
     }
 
     if( wm->screen_lock_counter > 0 )
@@ -593,9 +679,15 @@ void device_screen_lock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 0 && wm->gx_suspended == 0 )
     {
-#ifdef DIRECTDRAW
-	framebuffer = (COLORPTR)GXBeginDraw();
-#endif //DIRECTDRAW
+	if( current_wm->vd == VIDEODRIVER_GAPI )
+	{
+	    framebuffer = (COLORPTR)GXBeginDraw();
+	}
+	else if( current_wm->vd == VIDEODRIVER_RAW )
+	{
+	    RawFrameBufferInfo *rfb = (RawFrameBufferInfo*)wm->rfb;
+	    framebuffer = (COLORPTR)rfb->pFramePointer;
+	}
     }
     wm->screen_lock_counter++;
     
