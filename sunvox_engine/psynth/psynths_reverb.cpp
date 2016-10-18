@@ -26,31 +26,6 @@
 
 #include "psynth.h"
 
-#if defined(STYPE_FLOATINGPOINT) && defined(ARCH_X86)
-    #include <math.h>
-    static inline float
-    undenormalise( volatile float s )
-    {
-        //Variant 1: (not working on latest GCC)
-	//s += 9.8607615E-32f;
-	//return s - 9.8607615E-32f;
-
-        //Variant 3: (not working on latest GCC)
-        //*(unsigned int *)&s &= 0x7fffffff;
-        //return s;
-
-        //Variant 2:
-	float absx = fabs( s );
-	//very small numbers fail the first test, eliminating denormalized numbers
-	//(zero also fails the first test, but that is OK since it returns zero.)
-	//very large numbers fail the second test, eliminating infinities.
-	//Not-a-Numbers fail both tests and are eliminated.
-	return ( absx > 1e-15 && absx < 1e15 ) ? s : 0.0F;
-    }
-#else
-    #define undenormalise( s ) s
-#endif
-
 //Unique names for objects in your synth:
 #define SYNTH_DATA	psynth_reverb_data
 #define SYNTH_HANDLER	psynth_reverb
@@ -367,6 +342,7 @@ int SYNTH_HANDLER(
 			dc_block_prev_y = input - dc_block_prev_x + dc_block_prev_y * dc_block_pole;
 			dc_block_prev_x = input;
 			input = dc_block_prev_y;
+			denorm_add_white_noise( input );
 #else
 			//Fixed-Point DC Blocking Filter With Noise-Shaping:
 			dc_block_acc -= dc_block_prev_x;
@@ -417,10 +393,10 @@ int SYNTH_HANDLER(
 			comb_filter *f = &data->combs[ a ];
 			STYPE_CALC f_out = f->buf[ f->buf_ptr ];
 #ifdef STYPE_FLOATINGPOINT
-			//f_out = undenormalise( f_out );
 			f->filterstore = ( f_out * f->damp1 ) + ( f->filterstore * f->damp2 );
-			f->filterstore = undenormalise( f->filterstore );
-			f->buf[ f->buf_ptr ] = undenormalise( input + ( f->filterstore * f->feedback ) );
+			//f->filterstore = undenormalize( f->filterstore );
+			//f->buf[ f->buf_ptr ] = undenormalize( input + ( f->filterstore * f->feedback ) );
+			f->buf[ f->buf_ptr ] = input + ( f->filterstore * f->feedback );
 #else
 			STYPE_CALC f_v;
 			f->filterstore = ( f_out * f->damp1 + f->filterstore * f->damp2 ) / 256;
@@ -438,9 +414,9 @@ int SYNTH_HANDLER(
 			STYPE_CALC f_bufout = f->buf[ f->buf_ptr ];
 			STYPE_CALC f_out;
 			STYPE_CALC f_in;
-#ifdef STYPE_FLOATINGPOINT
-			f_bufout = undenormalise( f_bufout );
-#endif
+
+			//f_bufout = undenormalize( f_bufout );
+
 			if( a < MAX_ALLPASSES ) f_in = outL; else f_in = outR;
 			f_out = -f_in + f_bufout;
 #ifdef STYPE_FLOATINGPOINT

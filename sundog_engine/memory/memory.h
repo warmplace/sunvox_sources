@@ -30,15 +30,15 @@ enum
     #define MEM_PREV        -16
 #endif
 
-#define MEM_NEW( heap, size ) mem_new( heap, size, (char*)__FUNCTION__, 0 )
+#define MEM_NEW( heap, size ) mem_new( heap, size, (UTF8_CHAR*)__FUNCTION__, 0 )
 
 //mem_new():
 //heap - heap number:
 //HEAP_DYNAMIC = dynamic heap for small blocks
 //HEAP_STORAGE = storage heap for large static blocks
 //size - block size
-void mem_free_all();
-void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long id ); //Each memory block has own name and ID
+int mem_free_all();
+void* mem_new( unsigned long heap, unsigned long size, const UTF8_CHAR *name, unsigned long id ); //Each memory block has own name and ID
 void simple_mem_free( void *ptr );
 void mem_free( void *ptr );
 void mem_set( void *ptr, unsigned long size, unsigned char value );
@@ -48,6 +48,7 @@ int mem_cmp( const char *p1, const char *p2, unsigned long size );
 void mem_strcat( char *dest, const char *src );
 long mem_strcmp( const char *s1, const char *s2 );
 int mem_strlen( const char *s );
+int mem_strlen_utf32( const UTF32_CHAR *s );
 char *mem_strdup( const char *s1 );
 
 //Get info about memory block:
@@ -57,10 +58,10 @@ long mem_get_size( void *ptr );
 char *mem_get_name( void *ptr );
 
 //Palm specific:
-void mem_on(void);  //Storage protection ON
-void mem_off(void); //Storage protection OFF
-void mem_palm_normal_mode(void); //Switch to normal mode (Storage protection ON)
-void mem_palm_our_mode(void);    //Switch back to our mode (Storage protection is ON or OFF)
+void mem_on( void ); //Storage protection ON
+void mem_off( void ); //Storage protection OFF
+void mem_palm_normal_mode( void ); //Switch to normal mode (Storage protection ON)
+void mem_palm_our_mode( void ); //Switch back to our mode (Storage protection is ON or OFF)
 
 //Posix compatibility for PalmOS devices:
 #ifdef PALMOS

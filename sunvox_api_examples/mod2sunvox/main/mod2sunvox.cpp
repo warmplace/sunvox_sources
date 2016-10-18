@@ -1,6 +1,6 @@
 /*
     mod2sunvox.cpp.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #include <stdio.h>
@@ -17,7 +17,7 @@ sunvox_engine g_sv; //SunVox data
 
 void show_usage( void )
 {
-    printf( "MOD/XM -> SunVox converter. v1.0.\nBy Alex Zolotov (nightradio@gmail.com). (c) 2009.\nWWW: warmplace.ru\n" );
+    printf( "MOD/XM -> SunVox converter. v1.1\nCode by Alex Zolotov (nightradio@gmail.com). (C) 2009. www.warmplace.ru\n" );
     printf( "Usage: mod2sunvox <input file(s)>\n" );
 }
 
@@ -200,6 +200,13 @@ int main( int argc, char *argv[] )
 				//Effect:
 				switch( note->fx )
 				{
+				    case 0x00:
+					if( note->par )
+					{
+					    snote->ctl = 0x0008;
+					    snote->ctl_val = ( (uint16)note->par & 0x0F ) + ( (uint16)( note->par & 0xF0 ) << 4 );
+					}
+					break;
 				    case 0x01:
 					snote->ctl = 0x0001;
 					snote->ctl_val = (uint16)note->par * 4;
@@ -222,6 +229,10 @@ int main( int argc, char *argv[] )
 					    snote->ctl = 0x0200;
 					    snote->ctl_val = (uint16)( note->par / 2 ) << 8;
 					}
+					break;
+				    case 0x09:
+					snote->ctl = 0x0009;
+					snote->ctl_val = (uint16)note->par * 2;
 					break;
 				    case 0x0A:
 					snote->ctl = 0x000A;

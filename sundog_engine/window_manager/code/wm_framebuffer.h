@@ -110,14 +110,17 @@ void device_draw_bitmap(
     int dest_x, int dest_y, 
     int dest_xs, int dest_ys,
     int src_x, int src_y,
-    int src_xs, int src_ys,
-    COLOR *data,
+    sundog_image *img,
     window_manager *wm )
 {
     if( !wm->screen_is_active ) return;
 
     int fb_xpitch = FB_XPITCH;
     int fb_ypitch = FB_YPITCH;
+
+    int src_xs = img->xsize;
+    int src_ys = img->ysize;
+    COLORPTR data = (COLORPTR)img->data;
 
     COLORPTR ptr = framebuffer + FB_OFFSET + dest_y * fb_ypitch + dest_x * fb_xpitch;
     int bp = src_y * src_xs + src_x;
@@ -155,34 +158,37 @@ void device_redraw_framebuffer( window_manager *wm )
     /* draw polygon with the screen */
     glBindTexture( GL_TEXTURE_2D, 1 );
 #ifdef COLOR8BITS
-    glTexImage2D( GL_TEXTURE_2D,
-                  0,
-                  3,
-                  wm->screen_xsize, wm->screen_ysize,
-                  0,
-                  GL_COLOR_INDEX,
-                  GL_UNSIGNED_BYTE,
-                  framebuffer );
+    glTexImage2D( 
+	GL_TEXTURE_2D,
+        0,
+        3,
+        wm->screen_xsize, wm->screen_ysize,
+        0,
+        GL_LUMINANCE,
+        GL_UNSIGNED_BYTE,
+        framebuffer );
 #endif
 #ifdef COLOR16BITS
-    glTexImage2D( GL_TEXTURE_2D,
-                  0,
-                  3,
-                  wm->screen_xsize, wm->screen_ysize,
-                  0,
-                  GL_LUMINANCE,
-                  GL_UNSIGNED_SHORT,
-                  framebuffer );
+    glTexImage2D( 
+	GL_TEXTURE_2D,
+        0,
+        3,
+        wm->screen_xsize, wm->screen_ysize,
+        0,
+        GL_LUMINANCE,
+        GL_UNSIGNED_SHORT,
+        framebuffer );
 #endif
 #ifdef COLOR32BITS
-    glTexImage2D( GL_TEXTURE_2D,
-                  0,
-                  4,
-                  wm->screen_xsize, wm->screen_ysize,
-                  0,
-                  GL_BGRA_EXT,
-                  GL_UNSIGNED_BYTE,
-                  framebuffer );
+    glTexImage2D( 
+	GL_TEXTURE_2D,
+        0,
+        4,
+        wm->screen_xsize, wm->screen_ysize,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        framebuffer );
 #endif
     glDisable( GL_DEPTH_TEST );
     glBegin( GL_POLYGON );
@@ -207,11 +213,13 @@ void device_redraw_framebuffer( window_manager *wm )
 #if defined(UNIX) && defined(DIRECTDRAW)
     if( wm->screen_lock_counter == 0 )
     {
-	SDL_UpdateRect( wm->sdl_screen, 0, 0, 0, 0 );
+	if( wm->screen_changed )
+	    SDL_UpdateRect( wm->sdl_screen, 0, 0, 0, 0 );
+	wm->screen_changed = 0;
     }
     else
     {
-	if( SDL_MUSTLOCK( wm->sdl_screen ) ) 
+	/*if( SDL_MUSTLOCK( wm->sdl_screen ) ) 
 	{
 	    SDL_UnlockSurface( wm->sdl_screen );
 	}
@@ -226,7 +234,8 @@ void device_redraw_framebuffer( window_manager *wm )
 	    {
 		framebuffer = (COLORPTR)wm->sdl_screen->pixels;
 	    }
-        }
+        }*/
+	dprint( "Screen locked!\n" );
     }
 #endif
 

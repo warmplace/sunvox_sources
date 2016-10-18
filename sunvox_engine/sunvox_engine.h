@@ -62,20 +62,29 @@ struct sunvox_pattern_info
     int		    std_eff_ptr;				//Pointer to structure in std_eff array
 };
 
+#define EFF_FLAG_TONE_PORTA			1
+#define EFF_FLAG_ARPEGGIO_IN_PREVIOUS_TICK	2
+
 struct sunvox_std_eff
 {
-    int16	    cur_period;
+    int		    cur_period;
     int16	    target_period;
     uint16	    porta_speed;
-    char	    tone_porta;
+    char	    flags;
     int16	    cur_vel;
     int16	    vel_speed;
+    uint16	    arpeggio;
 };
 
-#define SUNVOX_FPS			64
-#define SUNVOX_F_BUFFER_SIZE		( SUNVOX_FPS * 1 )
-#define SUNVOX_F_BUFFERS		2
-#define SUNVOX_F_BUFFERS_MASK		( SUNVOX_F_BUFFERS - 1 )
+#ifdef PALMOS
+    #define SUNVOX_F_BUFFER_SIZE	16
+    #define SUNVOX_F_BUFFERS		1
+    #define SUNVOX_F_BUFFERS_MASK	( SUNVOX_F_BUFFERS - 1 )
+#else
+    #define SUNVOX_F_BUFFER_SIZE	64
+    #define SUNVOX_F_BUFFERS		4
+    #define SUNVOX_F_BUFFERS_MASK	( SUNVOX_F_BUFFERS - 1 )
+#endif
 
 struct sunvox_engine
 {
@@ -85,15 +94,17 @@ struct sunvox_engine
     ticks_t	    start_time; //Time in system ticks
     ticks_t	    cur_time; //...
     int		    single_pattern_play; //Number of pattern or -1.
+    int		    stop_at_the_end_of_song;
+    int		    end_of_song;
 
     int		    tick_counter;   //From 0 to tick_size << 8
-    int		    time_counter;   //Number of current tick
+    int		    time_counter;   //Number of current line
     int		    speed_counter; 
 
     int		    bpm; //Beats per minute (One beat = 4 lines on speed 6)
     int		    speed; //Ticks per line
 
-    char	    *song_name;
+    UTF8_CHAR	    *song_name;
 
     int		    *sorted_pats;
     int		    sorted_pats_num;
@@ -130,8 +141,12 @@ struct sunvox_engine
     //Visualization frames: (scope drawing, realtime song pointers ...)
     uchar	    f_volumes_l[ SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS ]; //Volume levels
     uchar	    f_volumes_r[ SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS ]; //Volume levels
-    int		    f_ticks[ SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS ];	//Numbers of sunvox ticks
-    int		    f_buffer_size[ SUNVOX_F_BUFFERS ];
+#ifdef SUNVOX_F_SYNTHS
+    int		    f_synth_volumes[ SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS * 256 ];
+    int		    f_synth_prev_volume[ 256 ];
+#endif
+    int		    f_lines[ SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS ];	//Numbers of sunvox lines
+    ulong	    f_buffer_size[ SUNVOX_F_BUFFERS ];
     ticks_t	    f_buffer_start_time[ SUNVOX_F_BUFFERS ]; //In system ticks
     int		    f_current_buffer;
 };
@@ -145,12 +160,12 @@ extern int g_cancel_export_to_wav;
 void sunvox_engine_init( int flags, sunvox_engine *s );
 void sunvox_engine_close( sunvox_engine *s );
 
-void sunvox_load_song( char *name, sunvox_engine *s );
-void sunvox_save_song( char *name, sunvox_engine *s );
-int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s );
-void sunvox_save_synth( int synth_id, char *name, sunvox_engine *s );
+void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s );
+void sunvox_save_song( const UTF8_CHAR *name, sunvox_engine *s );
+int sunvox_load_synth( int x, int y, const UTF8_CHAR *name, sunvox_engine *s );
+void sunvox_save_synth( int synth_id, const UTF8_CHAR *name, sunvox_engine *s );
 unsigned int sunvox_get_song_length( sunvox_engine *s );
-void sunvox_export_to_wav( char *name, int mode, void (*status_handler)( void*, ulong ), void *status_data, sunvox_engine *s );
+void sunvox_export_to_wav( const UTF8_CHAR *name, int mode, void (*status_handler)( void*, ulong ), void *status_data, sunvox_engine *s );
 
 void sunvox_sort_patterns( sunvox_engine *s );
 
@@ -172,9 +187,23 @@ void sunvox_rewind( int t, sunvox_engine *s );
 void sunvox_stop( sunvox_engine *s );
 void sunvox_send_user_command( sunvox_note *snote, int channel_num, sunvox_engine *s );
 
-void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, int freq, int samples, sunvox_engine *s );
+//Buffer types:
+// 0 - 16 bits (int)
+// 1 - 32 bits (float)
+void sunvox_render_piece_of_sound( 
+    int buffer_type,
+    void *buffer,
+    int frames,
+    int channels, 
+    int freq, 
+    ticks_t out_time,
+    sunvox_engine *s );
 
-int sunvox_frames_get_ticks( sunvox_engine *s );
-int sunvox_frames_get_volume( int channel, sunvox_engine *s );
+#define SUNVOX_F_CHANNEL_VOL0 		0
+#define SUNVOX_F_CHANNEL_VOL1 		1
+#define SUNVOX_F_CHANNEL_LINES 		8
+#define SUNVOX_F_CHANNEL_SYNTH_VOL	16
+
+int sunvox_frames_get_value( int channel, sunvox_engine *s );
 
 #endif

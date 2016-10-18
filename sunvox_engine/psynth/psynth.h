@@ -11,7 +11,8 @@
 #include "window_manager/wmanager.h"
 #endif
 
-enum {
+enum 
+{
     COMMAND_NOP = 0,
     COMMAND_GET_DATA_SIZE,
     COMMAND_GET_SYNTH_NAME,
@@ -28,6 +29,7 @@ enum {
     COMMAND_NOTE_ON,
     COMMAND_SET_FREQ,
     COMMAND_SET_VELOCITY,
+    COMMAND_SET_SAMPLE_OFFSET,
     COMMAND_NOTE_OFF,
     COMMAND_ALL_NOTES_OFF,
     COMMAND_SET_LOCAL_CONTROLLER,
@@ -57,6 +59,7 @@ typedef float		STYPE;
 typedef float		STYPE_CALC;
 #define STYPE_DESCRIPTION "Float (32bit)"
 #define STYPE_FLOATINGPOINT
+#define STYPE_ONE 1.0F
 #define INT16_TO_STYPE( res, val ) { res = (float)(val) / (float)32768; }
 #define STYPE_TO_FLOAT( res, val ) { res = val; }
 #define STYPE_TO_INT16( res, val ) { \
@@ -73,6 +76,7 @@ typedef float		STYPE_CALC;
 typedef signed short	STYPE;
 typedef int		STYPE_CALC;
 #define STYPE_DESCRIPTION "Int16 (fixed point. 1.0 = 1024)"
+#define STYPE_ONE 1024
 #define INT16_TO_STYPE( res, val ) { res = (signed short)( (val) >> 5 ); }
 #define STYPE_TO_FLOAT( res, val ) { res = (float)val / (float)1024; }
 #define STYPE_TO_INT16( res, val ) { \
@@ -84,13 +88,13 @@ typedef int		STYPE_CALC;
 
 struct psynth_control
 {
-    char	    *ctl_name;  //For example: "Delay", "Feedback"
-    char	    *ctl_label; //For example: "dB", "samples"
-    CTYPE	    ctl_min;
-    CTYPE	    ctl_max;
-    CTYPE	    ctl_def;
-    CTYPE	    *ctl_val;
-    int		    type;
+    const UTF8_CHAR	*ctl_name;  //For example: "Delay", "Feedback"
+    const UTF8_CHAR    	*ctl_label; //For example: "dB", "samples"
+    CTYPE	    	ctl_min;
+    CTYPE	    	ctl_max;
+    CTYPE	    	ctl_def;
+    CTYPE	    	*ctl_val;
+    int		    	type;
 };
 
 //One item of the sound net:
@@ -109,7 +113,7 @@ struct psynth_net_item
 {
     int		    flags;
 
-    char	    item_name[ 32 ];
+    UTF8_CHAR	    item_name[ 32 ];
     int		    name_counter;			    //For generation unique names
 
     int		    (*synth)(  
@@ -164,7 +168,7 @@ struct psynth_net
     
     psynth_net_item	*items;
     int			items_num;
-    
+
     //Some info:
     
     int			sampling_freq;
@@ -187,6 +191,8 @@ struct psynth_net
 					//    256 - one note. 256 * 12 - octave
 					//    MAX_PERIOD_PTR - note 0 (lowest possible frequency); 
 					//    0 - note 120; -1 - note 121 (with more high frequency)
+					
+    ulong		sample_offset;	//In. Sample offset in frames (frame = channels * number_of_bits_per_sample)
 
     int			ctl_num;	//In. Number of controller
     int			ctl_val;	//In. Controller value (0..65535)
@@ -200,15 +206,15 @@ struct psynth_net
 //delta = smp_freq / real_sampling_freq
 
 extern void psynth_register_ctl( 
-    int		synth_id, 
-    char	*ctl_name,  //For example: "Delay", "Feedback"
-    char	*ctl_label, //For example: "dB", "samples"
-    CTYPE	ctl_min,
-    CTYPE	ctl_max,
-    CTYPE	ctl_def,
-    int		type,	    //0 - level (input values 0..0x8000); 1 - numeric
-    CTYPE	*value,
-    void	*net );
+    int	synth_id, 
+    const UTF8_CHAR *ctl_name, //For example: "Delay", "Feedback"
+    const UTF8_CHAR *ctl_label, //For example: "dB", "samples"
+    CTYPE ctl_min,
+    CTYPE ctl_max,
+    CTYPE ctl_def,
+    int	type, //0 - level (input values 0..0x8000); 1 - numeric
+    CTYPE *value,
+    void *net );
 
 //Global tables:
 extern ulong g_linear_tab[ 768 ];
@@ -237,5 +243,56 @@ extern int psynth_get_number_of_outputs( int synth_id, void *net );
 extern int psynth_get_number_of_inputs( int synth_id, void *net );
 extern void psynth_set_number_of_outputs( int num, int synth_id, void *net );
 extern void psynth_set_number_of_inputs( int num, int synth_id, void *net );
+
+//Undenormalization:
+/* Denormalising:
+ *
+ * According to music-dsp thread 'Denormalise', Pentium processors
+ * have a hardware 'feature', that is of interest here, related to
+ * numeric underflow.  We have a recursive filter. The output decays
+ * exponentially, if the input stops.  So the numbers get smaller and
+ * smaller... At some point, they reach 'denormal' level.  This will
+ * lead to drastic spikes in the CPU load.  The effect was reproduced
+ * with the reverb - sometimes the average load over 10 s doubles!!.
+ *
+ * The 'undenormalise' macro fixes the problem: As soon as the number
+ * is close enough to denormal level, the macro forces the number to
+ * 0.0f.
+ *
+ */
+#if defined(STYPE_FLOATINGPOINT) && defined(ARCH_X86)
+    #include <math.h>
+    #define DENORMAL_NUMBERS
+    extern unsigned int denorm_rand_state;
+    #define denorm_add_white_noise( val ) \
+    { \
+	denorm_rand_state = denorm_rand_state * 1234567UL + 890123UL; \
+	int mantissa = denorm_rand_state & 0x807F0000; /* Keep only most significant bits */ \
+	int flt_rnd = mantissa | 0x1E000000; /* Set exponent */ \
+	val += *reinterpret_cast <const float *>( &flt_rnd ); \
+    }
+    static inline float
+    undenormalize( volatile float s )
+    {
+        //Variant 1: (not working on latest GCC)
+        //s += 9.8607615E-32f;
+        //return s - 9.8607615E-32f;
+
+        //Variant 3: (not working on latest GCC)
+        //*(unsigned int *)&s &= 0x7fffffff;
+        //return s;
+
+        //Variant 2:
+        float absx = fabs( s );
+        //very small numbers fail the first test, eliminating denormalized numbers
+        //(zero also fails the first test, but that is OK since it returns zero.)
+        //very large numbers fail the second test, eliminating infinities.
+        //Not-a-Numbers fail both tests and are eliminated.
+        return ( absx > 1e-15 && absx < 1e15 ) ? s : 0.0F;
+    }
+#else
+    #define denorm_add_white_noise( val ) /**/
+    #define undenormalize( s ) s
+#endif
 
 #endif

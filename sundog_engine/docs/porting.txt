@@ -48,6 +48,4 @@ Include this file in the wmanager.cpp
 Make changes in a following files, if it's necessary:
 core/code/debug.cpp (.h)
 memory/code/memory.cpp (.h)
-utils/code/utils.cpp (.h)
-
- 
+utils/code/utils.cpp (.h) 

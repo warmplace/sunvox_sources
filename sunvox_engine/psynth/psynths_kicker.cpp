@@ -157,7 +157,7 @@ int SYNTH_HANDLER(
 	    psynth_register_ctl( synth_id, "Attack", "", 0, 512, 0, 0, &data->ctl_attack, net );
 	    psynth_register_ctl( synth_id, "Release", "", 0, 512, 32, 0, &data->ctl_release, net );
 	    psynth_register_ctl( synth_id, "Vol. Add", "", 0, 1024, 0, 0, &data->ctl_vol_add, net );
-	    psynth_register_ctl( synth_id, "Env. Accel.", "", 0, 1024, 128, 0, &data->ctl_env_accel, net );
+	    psynth_register_ctl( synth_id, "Env. Accel.", "", 0, 1024, 256, 0, &data->ctl_env_accel, net );
 	    psynth_register_ctl( synth_id, "Polyphony", "ch.", 1, MAX_CHANNELS, 1, 1, &data->ctl_channels, net );
 	    psynth_register_ctl( synth_id, "Anticlick", "off/on", 0, 1, 0, 1, &data->ctl_anticlick, net );
 	    for( int c = 0; c < MAX_CHANNELS; c++ )

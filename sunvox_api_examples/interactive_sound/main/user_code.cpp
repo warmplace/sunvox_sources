@@ -1,38 +1,52 @@
 /*
     user_code.cpp.
     This file is part of the SunVox API Example #1.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #include "main/user_code.h"
 
 #include "../../../sunvox_engine/sunvox_engine.h"
 
-char *user_window_name = "SunVox API Example #1 (" __DATE__ ")";
-char *user_profile_name = "sunvox_config.ini";
-char *user_debug_log_file_name = "sunvox_log.txt";
+const UTF8_CHAR *user_window_name = "SunVox API Example #1 (" __DATE__ ")";
+const UTF8_CHAR *user_profile_name = "sunvox_config.ini";
+const UTF8_CHAR *user_debug_log_file_name = "sunvox_log.txt";
 int user_window_xsize = 240;
 int user_window_ysize = 240;
 int user_window_flags = WIN_INIT_FLAG_SCALABLE;
 
 sunvox_engine g_sv;
 
-int render_piece_of_sound( signed short *buffer, int buffer_size, int freq, void *user_data )
+int render_piece_of_sound( sound_struct *ss )
 {
     int handled = 0;
-    if( user_data )
+    
+    if( ss && ss->user_data )
     {
-	sunvox_render_piece_of_sound( buffer, 1, 2, freq, buffer_size, (sunvox_engine*)user_data );
-	handled = 1;
+	int buffer_type;
+        if( ss->mode & SOUND_MODE_INT16 )
+            buffer_type = 0;
+        if( ss->mode & SOUND_MODE_FLOAT32 )
+            buffer_type = 1;
+        sunvox_render_piece_of_sound(
+            buffer_type,
+            ss->out_buffer,
+            ss->out_frames,
+            ss->channels,
+            ss->freq,
+            ss->out_time,
+            (sunvox_engine*)ss->user_data );
+        handled = 1;    
     }
+    
     return handled;
 }
 
 int my_desktop_handler( sundog_event *evt, window_manager *wm )
 {
     int retval = 0;
-    WINDOWPTR win = evt->event_win;
-    switch( evt->event_type )
+    WINDOWPTR win = evt->win;
+    switch( evt->type )
     {
 	case EVT_AFTERCREATE:
 	    //Init sound engine:
@@ -109,6 +123,7 @@ int my_desktop_handler( sundog_event *evt, window_manager *wm )
 	    break;
 	case EVT_MOUSEBUTTONDOWN:
 	case EVT_MOUSEMOVE:
+	    if( evt->key == MOUSE_BUTTON_LEFT )
 	    {
 		int y = evt->y / 10;
 		int s = -1;
@@ -207,6 +222,7 @@ void user_init( window_manager *wm )
 	0, 
 	my_desktop_handler,
 	wm );
+    wm->root_win->font = 0;
 
     show_window( wm->root_win, wm );
     recalc_regions( wm );
@@ -217,10 +233,6 @@ int user_event_handler( sundog_event *evt, window_manager *wm )
 {
     int handled = 0;
     return handled;
-}
-
-void user_screen_redraw( window_manager *wm )
-{
 }
 
 void user_close( window_manager *wm )

@@ -11,7 +11,7 @@
 #define SYNTH_DATA	psynth_generator_data
 #define SYNTH_HANDLER	psynth_generator
 //And unique parameters:
-#define SYNTH_INPUTS	0
+#define SYNTH_INPUTS	1
 #define SYNTH_OUTPUTS	2
 
 #define MAX_CHANNELS	16
@@ -67,6 +67,7 @@ struct SYNTH_DATA
     CTYPE   ctl_channels;
     CTYPE   ctl_mode;
     CTYPE   ctl_sustain;
+    CTYPE   ctl_mod;
     //Synth data: ##########################################################
     gen_channel   channels[ MAX_CHANNELS ];
     signed char    *noise_data;
@@ -83,9 +84,18 @@ if( v1_p < 0 ) { v1--; v1_p += ( (long)1 << SVOX_PREC ); } }
 #define SIGNED_ADD64( v1, v1_p, v2, v2_p ) \
 { v1 += v2; v1_p += v2_p; \
 if( v1_p > ( (long)1 << SVOX_PREC ) - 1 ) { v1++; v1_p -= ( (long)1 << SVOX_PREC ); } }
+#define UNSIGNED_MUL64( v1, v1_p, v2_p ) \
+{ \
+    v1 *= ( v2_p ); \
+    v1_p *= ( v2_p ); \
+    v1_p >>= SVOX_PREC; \
+    v1_p += v1 & ( ( 1 << SVOX_PREC ) - 1 ); \
+    v1 >>= SVOX_PREC; \
+    v1 += v1_p >> SVOX_PREC; \
+    v1_p &= ( 1 << SVOX_PREC ) - 1; \
+}
 
 #define GET_VAL_TRIANGLE \
-    STYPE_CALC val; \
     if( ( ptr_h & 15 ) < 8 ) \
     { \
 	INT16_TO_STYPE( val, -32767 + ( ptr_l / 8 + ( ( ptr_h & 7 ) * 8192 ) ) ); \
@@ -95,22 +105,18 @@ if( v1_p > ( (long)1 << SVOX_PREC ) - 1 ) { v1++; v1_p -= ( (long)1 << SVOX_PREC
 	INT16_TO_STYPE( val, 32767 - ( ptr_l / 8 + ( ( ptr_h & 7 ) * 8192 ) ) ); \
     }
 #define GET_VAL_SAW2 \
-    STYPE_CALC val; \
     INT16_TO_STYPE( val, 32767 - ( ptr_l / 32 + ( ( ptr_h & 31 ) * 4096 ) ) );
 #define GET_VAL_SAW \
-    STYPE_CALC val; \
     INT16_TO_STYPE( val, 32767 - ( ptr_l / 16 + ( ( ptr_h & 15 ) * 4096 ) ) );
 #define GET_VAL_RECTANGLE \
-    STYPE_CALC val = 0; \
+    val = 0; \
     if( ptr_h & 16 ) \
 	val = max_val; \
     else \
 	val = min_val;
 #define GET_VAL_NOISE \
-    STYPE_CALC val; \
     INT16_TO_STYPE( val, noise_data[ ( ptr_h + add ) & 32767 ] * 256 );
 #define GET_VAL_DIRTY \
-    STYPE_CALC val; \
     INT16_TO_STYPE( val, dirty_wave[ ( ptr_h >> 2 ) & 31 ] * 256 );
 #define APPLY_VOLUME \
     val *= vol; \
@@ -178,7 +184,7 @@ int SYNTH_HANDLER(
 	case COMMAND_GET_INPUTS_NUM: retval = SYNTH_INPUTS; break;
 	case COMMAND_GET_OUTPUTS_NUM: retval = SYNTH_OUTPUTS; break;
 
-	case COMMAND_GET_FLAGS: retval = PSYNTH_FLAG_GENERATOR; break;
+	case COMMAND_GET_FLAGS: retval = PSYNTH_FLAG_GENERATOR | PSYNTH_FLAG_EFFECT; break;
 
 	case COMMAND_INIT:
 	    psynth_register_ctl( synth_id, "Volume", "", 0, 256, 128, 0, &data->ctl_volume, net );
@@ -189,6 +195,7 @@ int SYNTH_HANDLER(
 	    psynth_register_ctl( synth_id, "Polyphony", "ch.", 1, MAX_CHANNELS, 8, 1, &data->ctl_channels, net );
 	    psynth_register_ctl( synth_id, "Mode", "HQ/HQmono", 0, MODES - 1, MODE_HQ, 1, &data->ctl_mode, net );
 	    psynth_register_ctl( synth_id, "Sustain", "off/on", 0, 1, 1, 1, &data->ctl_sustain, net );
+	    psynth_register_ctl( synth_id, "P.Modulation", "", 0, 256, 0, 0, &data->ctl_mod, net );
 	    for( int c = 0; c < MAX_CHANNELS; c++ )
 	    {
 		data->channels[ c ].playing = 0;
@@ -293,7 +300,7 @@ int SYNTH_HANDLER(
 		    int outputs_num = psynth_get_number_of_outputs( synth_id, pnet );
 		    for( ch = 0; ch < outputs_num; ch++ )
 		    {
-			STYPE *in = inputs[ ch ];
+			STYPE *in = inputs[ 0 ];
 			STYPE *out = outputs[ ch ];
 			sustain = chan->sustain;
         		ptr_h = chan->ptr_h;
@@ -324,11 +331,97 @@ int SYNTH_HANDLER(
 			int local_type = chan->local_type;
 			if( local_type == 1 && data->wrong_saw_generation )
 			    local_type = 8; //saw bug fix for the first version of SunVox
-			if( retval == 0 ) 
+			if( data->ctl_attack == 0 && data->ctl_release == 0 )
+			{
+			    //Can't play any sounds in this case:
+			    if( sustain_enabled == 0 ) sustain = 0;
+			}
+			STYPE_CALC val;
+			if( data->ctl_mod )
+			{
+			    //MODULATION:
+			    ulong mod_delta_h, mod_delta_l;
+			    int mod_freq;
+			    GET_FREQ( mod_freq, 100 );
+			    GET_DELTA( mod_freq, mod_delta_h, mod_delta_l );
+			    UNSIGNED_MUL64( mod_delta_h, mod_delta_l, ( data->ctl_mod << ( SVOX_PREC - 8 ) ) / 8 );
+			    if( data->ctl_attack == 0 && data->ctl_release == 0 )
+			    {
+				if( sustain == 0 ) playing = 0;
+				if( retval == 0 )
+				{
+				    if( sustain == 0 )
+					for( i = 0; i < sample_frames; i++ ) out[ i ] = 0;  
+				}
+			    }
+			    if( playing )
+			    for( i = 0; i < sample_frames; i++ ) 
+			    {
+				switch( local_type )
+				{
+				    case 0: //Triangle:
+					GET_VAL_TRIANGLE;
+					break;
+				    case 1: //Saw:
+					GET_VAL_SAW;
+					break;
+				    case 2: //Rectangle:
+					GET_VAL_RECTANGLE;
+					break;
+				    case 3: //Noise:
+					GET_VAL_NOISE;
+					break;
+				    case 4: //Dirty:
+					GET_VAL_DIRTY;
+					break;
+				}
+				APPLY_VOLUME;
+				APPLY_ENV_VOLUME;
+				if( retval == 0 )
+				    out[ i ] = val;
+				else
+				    out[ i ] += val;
+				SIGNED_ADD64( ptr_h, ptr_l, delta_h, delta_l );
+				if( sustain )
+				{
+				    env_vol += attack_delta;
+				    if( env_vol >= ( 1 << 30 ) ) { env_vol = ( 1 << 30 ); if( sustain_enabled == 0 ) sustain = 0; }
+				}
+				else
+				{	
+				    env_vol -= release_delta;
+				    if( env_vol > ( 1 << 30 ) ) { env_vol = 0; playing = 0; if( retval == 0 ) { while( i < sample_frames ) { out[ i ] = 0; i++; } } break; }
+				}
+				STYPE_CALC in_v = in[ i ];
+				int minus = 0;
+				if( in_v < 0 )
+				{
+				    minus = 1;
+				    in_v = -in_v;
+				}
+				if( in_v > STYPE_ONE ) in_v = STYPE_ONE;
+				ulong mul;
+				STYPE_TO_INT16( mul, in_v );
+				ulong mod_delta_h2 = mod_delta_h;
+				ulong mod_delta_l2 = mod_delta_l;
+				UNSIGNED_MUL64( mod_delta_h2, mod_delta_l2, mul );
+				if( minus == 0 )
+				{
+				    SIGNED_ADD64( ptr_h, ptr_l, mod_delta_h2, mod_delta_l2 );
+				}
+				else
+				{
+				    SIGNED_SUB64( ptr_h, ptr_l, mod_delta_h2, mod_delta_l2 );
+				}
+			    }
+			}
+			else
+			{ 
+			    //NO MODULATION:
+			if( retval == 0 )
 			{
 			    if( data->ctl_attack == 0 && data->ctl_release == 0 )
 			    {
-				if( sustain_enabled == 0 ) sustain = 0;
 				if( sustain == 0 ) { for( i = 0; i < sample_frames; i++ ) out[ i ] = 0; playing = 0; }
 				else
 				switch( local_type )
@@ -539,6 +632,7 @@ int SYNTH_HANDLER(
 				}
 			    }
 			}
+			} //...NO MODULATION
 		    }
 		    chan->ptr_h = ptr_h;
 		    chan->ptr_l = ptr_l;

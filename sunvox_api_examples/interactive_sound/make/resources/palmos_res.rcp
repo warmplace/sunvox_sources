@@ -1,21 +1,21 @@
 ICONFAMILYEX
 BEGIN
-    BITMAP "Resources/22.bmp" BPP 1 
-    BITMAP "Resources/22.bmp" BPP 2 
-    BITMAP "Resources/22.bmp" BPP 8 TRANSPARENTINDEX 210 COMPRESS
-    BITMAP "Resources/44.bmp" BPP 1 DENSITY 2
-    BITMAP "Resources/44.bmp" BPP 2 DENSITY 2
-    BITMAP "Resources/44.bmp" BPP 8 TRANSPARENT 0 255 0 COMPRESS DENSITY 2
+    BITMAP "resources/22.bmp" BPP 1 
+    BITMAP "resources/22.bmp" BPP 2 
+    BITMAP "resources/22.bmp" BPP 8 TRANSPARENTINDEX 210 COMPRESS
+    BITMAP "resources/44.bmp" BPP 1 DENSITY 2
+    BITMAP "resources/44.bmp" BPP 2 DENSITY 2
+    BITMAP "resources/44.bmp" BPP 8 TRANSPARENT 0 255 0 COMPRESS DENSITY 2
 END
 
 SMALLICONFAMILYEX
 BEGIN
-    BITMAP "Resources/15.bmp"  BPP 1
-    BITMAP "Resources/15.bmp"  BPP 2
-    BITMAP "Resources/15.bmp"  BPP 8 TRANSPARENTINDEX 210 COMPRESS
-    BITMAP "Resources/30.bmp" BPP 1 DENSITY 2
-    BITMAP "Resources/30.bmp" BPP 2 DENSITY 2
-    BITMAP "Resources/30.bmp" BPP 8 TRANSPARENTINDEX 210 COMPRESS DENSITY 2 
+    BITMAP "resources/15.bmp"  BPP 1
+    BITMAP "resources/15.bmp"  BPP 2
+    BITMAP "resources/15.bmp"  BPP 8 TRANSPARENTINDEX 210 COMPRESS
+    BITMAP "resources/30.bmp" BPP 1 DENSITY 2
+    BITMAP "resources/30.bmp" BPP 2 DENSITY 2
+    BITMAP "resources/30.bmp" BPP 8 TRANSPARENTINDEX 210 COMPRESS DENSITY 2 
 END
 
 FORM ID 8888 AT ( 0 0 512 512 )

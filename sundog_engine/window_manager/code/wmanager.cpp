@@ -1,7 +1,7 @@
 /*
     wmanager.cpp. SunDog window manager
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #include "../../main/user_code.h"
@@ -16,280 +16,36 @@
     #include "palm_functions.h"
 #endif
 
-unsigned char font8x8[ 2050 ] = 
-{
-40,8,28,62,62,62,28,0,
-126,129,165,129,189,153,129,126,
-126,255,219,255,195,231,255,126,
-108,254,254,254,124,56,16,0,
-8,28,62,127,62,28,8,0,
-28,28,28,127,127,107,8,28,
-16,16,56,124,254,124,16,56,
-0,0,24,60,60,24,0,0,
-255,255,231,195,195,231,255,255,
-0,60,102,66,66,102,60,0,
-255,195,153,189,189,153,195,255,
-15,7,15,125,204,204,204,120,
-60,102,102,102,60,24,126,24,
-63,51,63,48,48,112,240,224,
-127,99,127,99,99,103,230,192,
-24,219,60,231,231,60,219,24,
-128,224,248,254,248,224,128,0,
-2,14,62,254,62,14,2,0,
-24,60,126,24,24,126,60,24,
-102,102,102,102,102,0,102,0,
-127,219,219,123,27,27,27,0,
-62,99,56,108,108,56,204,120,
-0,0,0,0,126,126,126,0,
-24,60,126,24,126,60,24,255,
-24,60,126,24,24,24,24,0,
-24,24,24,24,126,60,24,0,
-0,24,12,254,12,24,0,0,
-0,48,96,254,96,48,0,0,
-0,0,192,192,192,254,0,0,
-0,36,102,255,102,36,0,0,
-0,24,60,126,255,255,0,0,
-0,255,255,126,60,24,0,0,
-0,0,0,0,0,0,0,0,
-48,120,120,48,48,0,48,0,
-108,108,108,0,0,0,0,0,
-108,108,254,108,254,108,108,0,
-24,62,96,60,6,124,24,0,
-0,99,102,12,24,51,99,0,
-28,54,28,59,110,102,59,0,
-48,48,96,0,0,0,0,0,
-12,24,48,48,48,24,12,0,
-48,24,12,12,12,24,48,0,
-0,102,60,255,60,102,0,0,
-0,48,48,252,48,48,0,0,
-0,0,0,0,0,24,24,0,
-0,0,0,126,0,0,0,0,
-0,0,0,0,0,24,24,0,
-3,6,12,24,48,96,64,0,
-62,99,99,107,99,99,62,0,
-24,56,88,24,24,24,126,0,
-60,102,6,28,48,102,126,0,
-60,102,6,28,6,102,60,0,
-14,30,54,102,127,6,15,0,
-126,96,124,6,6,102,60,0,
-28,48,96,124,102,102,60,0,
-126,102,6,12,24,24,24,0,
-60,102,102,60,102,102,60,0,
-60,102,102,62,6,12,56,0,
-0,24,24,0,0,24,24,0,
-0,24,24,0,0,24,24,48,
-12,24,48,96,48,24,12,0,
-0,0,126,0,0,126,0,0,
-48,24,12,6,12,24,48,0,
-60,102,6,12,24,0,24,0,
-62,99,111,105,111,96,62,0,
-24,60,102,126,102,102,102,0,
-124,102,102,124,102,102,124,0,
-60,102,96,96,96,102,60,0,
-120,108,102,102,102,108,120,0,
-126,96,96,120,96,96,126,0,
-126,96,96,120,96,96,96,0,
-60,102,96,110,102,102,60,0,
-102,102,102,126,102,102,102,0,
-60,24,24,24,24,24,60,0,
-30,12,12,12,12,108,56,0,
-102,108,120,112,120,108,102,0,
-96,96,96,96,96,96,126,0,
-99,119,127,107,99,99,99,0,
-102,118,126,126,110,102,102,0,
-60,102,102,102,102,102,60,0,
-124,102,102,124,96,96,96,0,
-60,102,102,102,102,60,14,0,
-124,102,102,124,120,108,102,0,
-60,102,96,60,6,102,60,0,
-126,24,24,24,24,24,24,0,
-102,102,102,102,102,102,60,0,
-102,102,102,102,102,60,24,0,
-99,99,99,107,127,119,99,0,
-102,102,60,24,60,102,102,0,
-102,102,102,60,24,24,24,0,
-126,6,12,24,48,96,126,0,
-60,48,48,48,48,48,60,0,
-96,48,24,12,6,3,1,0,
-60,12,12,12,12,12,60,0,
-8,28,54,99,0,0,0,0,
-0,0,0,0,0,0,0,255,
-24,24,12,0,0,0,0,0,
-0,0,60,6,62,102,62,0,
-0,96,96,124,102,102,124,0,
-0,0,60,96,96,96,60,0,
-0,6,6,62,102,102,62,0,
-0,0,60,102,126,96,60,0,
-0,14,24,62,24,24,24,0,
-0,0,62,102,102,62,6,124,
-0,96,96,124,102,102,102,0,
-0,24,0,56,24,24,60,0,
-6,0,6,6,6,6,60,0,
-0,96,96,108,120,108,102,0,
-0,56,24,24,24,24,60,0,
-0,0,102,127,127,107,99,0,
-0,0,124,102,102,102,102,0,
-0,0,60,102,102,102,60,0,
-0,0,124,102,102,124,96,0,
-0,0,62,102,102,62,6,0,
-0,0,124,102,96,96,96,0,
-0,0,62,96,60,6,124,0,
-0,24,126,24,24,24,14,0,
-0,0,102,102,102,102,62,0,
-0,0,102,102,102,60,24,0,
-0,0,99,107,127,62,54,0,
-0,0,102,60,24,60,102,0,
-0,0,102,102,62,12,120,0,
-0,0,126,12,24,48,126,0,
-14,24,24,112,24,24,14,0,
-12,12,12,0,12,12,12,0,
-112,24,24,14,24,24,112,0,
-59,110,0,0,0,0,0,0,
-0,8,28,54,99,99,127,0,
-0,0,59,110,100,110,59,0,
-0,60,102,124,102,124,96,96,
-0,126,102,96,96,96,96,0,
-0,127,54,54,54,54,54,0,
-126,102,48,24,48,102,126,0,
-0,0,63,108,108,108,56,0,
-0,51,51,51,51,62,48,96,
-0,59,110,12,12,12,12,0,
-126,24,60,102,102,60,24,0,
-28,54,99,127,99,54,28,0,
-28,54,99,99,54,54,119,0,
-14,24,12,62,102,102,60,0,
-0,0,126,219,219,126,0,0,
-6,12,126,219,219,126,96,192,
-28,48,96,124,96,48,28,0,
-60,102,102,102,102,102,102,0,
-0,126,0,126,0,126,0,0,
-48,96,96,0,0,0,0,0,
-48,48,96,0,0,0,0,0,
-12,24,48,24,12,0,126,0,
-14,27,27,24,24,24,24,24,
-24,24,24,24,24,216,216,112,
-24,24,0,126,0,24,24,0,
-0,59,110,0,59,110,0,0,
-28,54,54,28,0,0,0,0,
-0,0,0,252,12,12,0,0,
-0,0,0,0,24,0,0,0,
-15,12,12,12,236,108,60,28,
-120,108,108,108,108,0,0,0,
-0,0,60,60,60,60,0,0,
-248,204,204,250,198,207,198,199,
-14,27,24,60,24,24,216,112,
-0,0,0,0,0,0,0,0,
-24,24,0,24,24,24,24,0,
-0,24,60,102,96,102,60,24,
-28,54,50,120,48,115,126,0,
-0,102,24,36,36,24,102,0,
-102,102,102,60,126,24,126,24,
-12,12,12,0,12,12,12,0,
-62,99,56,108,108,56,204,120,
-36,126,96,96,120,96,126,0,
-124,130,154,162,162,154,130,124,
-30,54,54,31,0,63,0,0,
-0,51,102,204,102,51,0,0,
-0,0,0,252,12,12,0,0,
-0,0,0,126,0,0,0,0,
-124,130,186,186,178,170,130,124,
-255,0,0,0,0,0,0,0,
-28,54,54,28,0,0,0,0,
-24,24,126,24,24,0,126,0,
-112,24,48,96,120,0,0,0,
-112,24,48,24,112,0,0,0,
-48,48,96,0,0,0,0,0,
-0,0,102,102,102,102,91,192,
-127,219,219,123,27,27,27,0,
-0,0,0,12,12,0,0,0,
-36,0,60,102,126,96,60,0,
-48,112,48,48,48,0,0,0,
-28,54,54,28,0,62,0,0,
-0,204,102,51,102,204,0,0,
-195,198,204,219,55,111,207,3,
-195,198,204,222,51,102,204,15,
-193,98,196,107,215,47,79,3,
-24,0,24,48,96,102,60,0,
-24,60,102,126,102,102,102,0,
-124,96,96,124,102,102,124,0,
-124,102,102,124,102,102,124,0,
-126,96,96,96,96,96,96,0,
-14,26,50,50,50,127,65,0,
-126,96,96,120,96,96,126,0,
-107,42,62,28,62,42,107,0,
-62,103,67,12,67,103,62,0,
-99,99,103,111,123,115,99,0,
-107,99,103,111,123,115,99,0,
-102,108,120,112,120,108,102,0,
-8,28,54,54,99,99,99,0,
-99,119,127,107,99,99,99,0,
-102,102,102,126,102,102,102,0,
-60,102,102,102,102,102,60,0,
-126,102,102,102,102,102,102,0,
-124,102,102,124,96,96,96,0,
-60,102,96,96,96,102,60,0,
-126,24,24,24,24,24,24,0,
-102,102,102,102,62,12,120,0,
-24,60,90,90,90,60,24,0,
-102,102,60,24,60,102,102,0,
-102,102,102,102,102,103,63,0,
-102,102,102,102,62,6,6,0,
-99,99,99,99,107,107,127,0,
-99,99,99,107,107,106,125,0,
-112,48,62,51,51,51,62,0,
-99,99,115,107,107,107,115,0,
-96,96,124,102,102,102,124,0,
-62,99,3,15,3,99,62,0,
-102,107,107,123,123,107,102,0,
-62,102,102,62,14,22,38,0,
-0,0,60,6,62,102,62,0,
-0,60,96,124,102,102,60,0,
-0,112,104,124,102,102,124,0,
-0,0,124,96,96,96,96,0,
-0,0,12,20,52,52,126,0,
-0,0,60,102,126,96,60,0,
-0,0,107,62,28,62,107,0,
-0,0,60,102,12,102,60,0,
-0,0,102,102,102,102,62,0,
-24,0,102,102,102,102,62,0,
-0,0,102,108,120,108,102,0,
-0,0,24,60,102,102,102,0,
-0,0,102,127,127,107,99,0,
-0,0,102,102,126,102,102,0,
-0,0,60,102,102,102,60,0,
-0,0,126,102,102,102,102,0,
-0,0,124,102,102,124,96,0,
-0,0,60,96,96,96,60,0,
-0,0,126,24,24,24,24,0,
-0,0,102,102,62,12,120,0,
-0,24,60,90,90,60,24,0,
-0,0,102,60,24,60,102,0,
-0,0,102,102,102,103,63,0,
-0,0,102,102,102,62,6,0,
-0,0,99,99,107,107,127,0,
-0,0,99,107,107,106,125,0,
-0,0,112,62,51,51,62,0,
-0,0,99,115,107,107,115,0,
-0,0,96,124,102,102,124,0,
-0,0,62,99,15,99,62,0,
-0,0,102,107,123,107,102,0,
-0,0,62,102,62,22,38,0
-};
+//Fonts (WIN1251)
+#include "fonts.h"
+sundog_image *g_font0_img = 0;
+sundog_image *g_font1_img = 0;
+
+sundog_event g_sundog_null_evt;
 
 //################################
 //## MAIN FUNCTIONS:            ##
 //################################
 
-uint16 *g_mul = 0;
-
-int win_init( char *windowname, int xsize, int ysize, int flags, window_manager *wm )
+int win_init( 
+    const UTF8_CHAR *windowname, 
+    int xsize, 
+    int ysize, 
+    int flags, 
+    int argc, 
+    UTF8_CHAR **argv,
+    window_manager *wm )
 {
     int retval = 0;
 
     wm->wm_initialized = 0;
 
+    wm->argc = argc;
+    wm->argv = argv;
+
     wm->events_count = 0;
     wm->current_event_num = 0;
+    mem_set( &g_sundog_null_evt, sizeof( g_sundog_null_evt ), 0 );
     sundog_mutex_init( &wm->events_mutex, 0 );
 
     wm->flags = flags;
@@ -308,6 +64,7 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
 
     wm->screen_lock_counter = 0;
     wm->screen_is_active = 0;
+    wm->screen_changed = 0;
 
     wm->pen_x = -1;
     wm->pen_y = -1;
@@ -315,10 +72,9 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
 
     wm->handler_of_unhandled_events = 0;
 
-    wm->user_font = 0;
-
+    wm->g_screen = 0;
+    wm->cur_window = 0;
     wm->cur_font_color = COLORMASK;
-    wm->cur_font_invert = false;
     wm->cur_font_draw_bgcolor = false; 
     wm->cur_font_bgcolor = 0;
     wm->cur_transparency = 255;
@@ -330,6 +86,10 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
     wm->fb_offset = 0;
     wm->fb_xpitch = 1;
     wm->fb_ypitch = 0;
+    wm->fb_landscape = 0;
+#ifdef OPENGL
+    wm->gl_double_buffer = 1;
+#endif
     int err = device_start( windowname, xsize, ysize, flags, wm ); //DEVICE DEPENDENT PART
     if( err )
     {
@@ -396,6 +156,29 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
 	wm->button_xsize += 20;
     }
 
+    wm->default_font = 1;
+#if defined(OPENGL) && !defined(FRAMEBUFFER)
+    //Create texture with default 8x8 font:
+    uchar *tmp = (uchar*)MEM_NEW( HEAP_DYNAMIC, 8 * 8 * 256 );
+    int img_ptr = 0;
+    for( int y = 0; y < 8 * 256; y++ )
+    {
+	uchar v = g_font0[ y ];
+	if( y >= 8 * 255 ) v = 0xFF;
+	for( int x = 0; x < 8; x++ )
+	{
+	    if( v & 128 ) 
+		tmp[ img_ptr ] = 255;
+	    else
+		tmp[ img_ptr ] = 0;
+	    v <<= 1;
+	    img_ptr++;
+	}
+    }
+    g_font0_img = new_image( 8, 8 * 256, tmp, 0, 0, 8, 8 * 256, IMAGE_ALPHA8, wm );
+    mem_free( tmp );
+#endif
+
     dprint( "MAIN: wmanager initialized\n" );
 
     wm->wm_initialized = 1;
@@ -410,18 +193,31 @@ void win_close( window_manager *wm )
     {
 	for( unsigned int a = 0; a < mem_get_size( wm->trash ) / sizeof( WINDOWPTR ); a++ )
 	{
-	    if( wm->trash[ a ] ) mem_free( wm->trash[ a ] );
+	    if( wm->trash[ a ] ) 
+	    {
+		if( wm->trash[ a ]->x1com ) mem_free( wm->trash[ a ]->x1com );
+		if( wm->trash[ a ]->y1com ) mem_free( wm->trash[ a ]->y1com );
+		if( wm->trash[ a ]->x2com ) mem_free( wm->trash[ a ]->x2com );
+		if( wm->trash[ a ]->y2com ) mem_free( wm->trash[ a ]->y2com );
+		mem_free( wm->trash[ a ] );
+	    }
 	}
 	mem_free( wm->trash );
     }
 
-    if( g_mul ) mem_free( g_mul );
+    if( g_font0_img )
+	remove_image( g_font0_img );
+    if( g_font1_img )
+	remove_image( g_font1_img );
 
     if( wm->screen_lock_counter > 0 )
     {
 	dprint( "MAIN: WARNING. Screen is still locked (%d)\n", wm->screen_lock_counter );
-	while( wm->screen_lock_counter > 0 ) device_screen_unlock( wm );
+	while( wm->screen_lock_counter > 0 ) device_screen_unlock( 0, wm );
     }
+
+    if( wm->g_screen )
+	mem_free( wm->g_screen );
 
     device_end( wm ); //DEVICE DEPENDENT PART (defined in eventloop.h)
 
@@ -435,7 +231,7 @@ void win_close( window_manager *wm )
 WINDOWPTR get_from_trash( window_manager *wm );
 
 WINDOWPTR new_window( 
-    char *name, 
+    const UTF8_CHAR *name, 
     int x, 
     int y, 
     int xsize, 
@@ -466,37 +262,29 @@ WINDOWPTR new_window(
     win->win_handler = ( int (*)( void*, void* ) )win_handler;
     win->click_time = time_ticks() - time_ticks_per_second() * 10;
 
-    for( int a = 0; a < WIN_MAX_COMS; a++ )
-    {
-	win->x1com[ a ] = CEND;
-	win->y1com[ a ] = CEND;
-	win->x2com[ a ] = CEND;
-	win->y2com[ a ] = CEND;
-    }
     win->controllers_calculated = 0;
     win->controllers_defined = 0;
 
     win->action_handler = 0;
     win->handler_data = 0;
     win->action_result = 0;
+    
+    win->font = wm->default_font;
 
     //Start init:
     if( win_handler )
     {
-	sundog_font *prev_font = wm->user_font;
-	if( win->user_font ) wm->user_font = win->user_font;
 	sundog_event evt;
 	mem_set( &evt, sizeof( evt ), 0 );
-	evt.event_win = win;
-	evt.event_type = EVT_GETDATASIZE;
+	evt.win = win;
+	evt.type = EVT_GETDATASIZE;
 	int datasize = win_handler( &evt, wm );
 	if( datasize > 0 )
 	{
 	    win->data = mem_new( HEAP_DYNAMIC, datasize, "win data", 0 );
 	}
-	evt.event_type = EVT_AFTERCREATE;
+	evt.type = EVT_AFTERCREATE;
 	win_handler( &evt, wm );
-	wm->user_font = prev_font;
     }
 
     //Save it to window manager:
@@ -512,18 +300,31 @@ void set_window_controller( WINDOWPTR win, int ctrl_num, window_manager *wm, ...
     va_start( p, wm );
     int ptr = 0;
     win->controllers_defined = 1;
-    while( ptr < WIN_MAX_COMS )
+    int *cmds = 0;
+    switch( ctrl_num )
+    {
+	case 0: cmds = win->x1com; break;
+	case 1: cmds = win->y1com; break;
+	case 2: cmds = win->x2com; break;
+	case 3: cmds = win->y2com; break;
+    }
+    if( cmds == 0 )
+	cmds = (int*)MEM_NEW( HEAP_DYNAMIC, sizeof( int ) * 4 );
+    while( 1 )
     {
 	int command = va_arg( p, int );
-	switch( ctrl_num )
-	{
-	    case 0: win->x1com[ ptr ] = command; break;
-	    case 1: win->y1com[ ptr ] = command; break;
-	    case 2: win->x2com[ ptr ] = command; break;
-	    case 3: win->y2com[ ptr ] = command; break;
-	}
+	if( mem_get_size( cmds ) / sizeof( int ) <= ptr )
+	    cmds = (int*)mem_resize( cmds, sizeof( int ) * ( ptr + 4 ) );
+	cmds[ ptr ] = command; 
 	if( command == CEND ) break;
 	ptr++;
+    }
+    switch( ctrl_num )
+    {
+	case 0: win->x1com = cmds; break;
+	case 1: win->y1com = cmds; break;
+	case 2: win->x2com = cmds; break;
+	case 3: win->y2com = cmds; break;
     }
     va_end( p );
 }
@@ -589,10 +390,9 @@ void remove_window( WINDOWPTR win, window_manager *wm )
 	{
 	    //Sent EVT_BEFORECLOSE to window handler:
 	    sundog_event evt;
-	    evt.button = 0;
-	    evt.mouse_button = 0;
-	    evt.event_win = win;
-	    evt.event_type = EVT_BEFORECLOSE;
+	    mem_set( &evt, sizeof( evt ), 0 );
+	    evt.win = win;
+	    evt.type = EVT_BEFORECLOSE;
 	    win->win_handler( &evt, wm );
 	}
 	if( win->childs )
@@ -604,14 +404,18 @@ void remove_window( WINDOWPTR win, window_manager *wm )
 	    win->childs = 0;
 	}
 	//Remove data:
-	if( win->data )
+	if( win->data ) 
 	    mem_free( win->data );
 	win->data = 0;
-	//Remove direct draw data:
-	wbd_deinit( win, wm );
 	//Remove region:
-	if( win->reg ) GdDestroyRegion( win->reg );
+	if( win->reg ) 
+	    GdDestroyRegion( win->reg );
 	win->reg = 0;
+	//Remove commands:
+	if( win->x1com ) mem_free( win->x1com ); win->x1com = 0;
+	if( win->y1com ) mem_free( win->y1com ); win->y1com = 0;
+	if( win->x2com ) mem_free( win->x2com ); win->x2com = 0;
+	if( win->y2com ) mem_free( win->y2com ); win->y2com = 0;
 	//Remove window:
 	if( win == wm->focus_win )
 	    wm->focus_win = 0;
@@ -684,16 +488,12 @@ void draw_window( WINDOWPTR win, window_manager *wm )
     win_draw_lock( win, wm );
     if( win && win->visible && win->reg )
     {
-	sundog_event evt;
-	evt.event_win = win;
-	evt.event_type = EVT_DRAW;
-	evt.button = 0;
-	evt.mouse_button = 0;
-	evt.pressure = 0;
 	if( win->reg->numRects )
 	{
-	    sundog_font *prev_font = wm->user_font;
-	    if( win->user_font ) wm->user_font = win->user_font;
+	    sundog_event evt;
+	    mem_set( &evt, sizeof( evt ), 0 );
+    	    evt.win = win;
+	    evt.type = EVT_DRAW;
 	    if( win->win_handler && win->win_handler( &evt, wm ) )
 	    {
 		//Draw event was handled
@@ -702,7 +502,6 @@ void draw_window( WINDOWPTR win, window_manager *wm )
 	    {
 		win_draw_box( win, 0, 0, win->xsize, win->ysize, win->color, wm );
 	    }
-	    wm->user_font = prev_font;
 	}
 	if( win->childs_num )
 	{
@@ -743,12 +542,15 @@ void recalc_controllers( WINDOWPTR win, window_manager *wm );
 
 void run_controller( WINDOWPTR win, int *c, int *val, int size, window_manager *wm )
 {
+    if( c == 0 ) return;
     int p = 0;
     WINDOWPTR other_win = 0;
     int a;
     int mode = 0;
     int perc = 0;
-    while( p < WIN_MAX_COMS && c[ p ] != CEND )
+    int backval = 0;
+    int brk = 0;
+    while( !brk )
     {
 	switch( c[ p ] )
 	{
@@ -759,100 +561,162 @@ void run_controller( WINDOWPTR win, int *c, int *val, int size, window_manager *
 		break;
 	    case CX1:
 		a = other_win->x;
-		if( mode == 0 ) *val = a;
-		if( mode == 1 ) *val -= a;
-		if( mode == 2 ) *val += a;
-		if( mode == 3 ) if( *val > a ) *val = a;
-		if( mode == 4 ) if( *val < a ) *val = a;
+		switch( mode )
+		{
+		    case 0: *val = a; break;
+		    case 1: *val -= a; break;
+		    case 2: *val += a; break;
+		    case 3: if( *val > a ) *val = a; break;
+		    case 4: if( *val < a ) *val = a; break;
+		}
+		mode = 0;
+		perc = 0;
 		break;
 	    case CY1: 
 		a = other_win->y;
-		if( mode == 0 ) *val = a;
-		if( mode == 1 ) *val -= a;
-		if( mode == 2 ) *val += a;
-		if( mode == 3 ) if( *val > a ) *val = a;
-		if( mode == 4 ) if( *val < a ) *val = a;
+		switch( mode )
+		{
+		    case 0: *val = a; break;
+		    case 1: *val -= a; break;
+		    case 2: *val += a; break;
+		    case 3: if( *val > a ) *val = a; break;
+		    case 4: if( *val < a ) *val = a; break;
+		}
+		mode = 0;
+		perc = 0;
 		break;
 	    case CX2:
 		a = other_win->x + other_win->xsize;
-		if( mode == 0 ) *val = a;
-		if( mode == 1 ) *val -= a;
-		if( mode == 2 ) *val += a;
-		if( mode == 3 ) if( *val > a ) *val = a;
-		if( mode == 4 ) if( *val < a ) *val = a;
+		switch( mode )
+		{
+		    case 0: *val = a; break;
+		    case 1: *val -= a; break;
+		    case 2: *val += a; break;
+		    case 3: if( *val > a ) *val = a; break;
+		    case 4: if( *val < a ) *val = a; break;
+		}
+		mode = 0;
+		perc = 0;
 		break;
 	    case CY2: 
 		a = other_win->y + other_win->ysize;
-		if( mode == 0 ) *val = a;
-		if( mode == 1 ) *val -= a;
-		if( mode == 2 ) *val += a;
-		if( mode == 3 ) if( *val > a ) *val = a;
-		if( mode == 4 ) if( *val < a ) *val = a;
+		switch( mode )
+		{
+		    case 0: *val = a; break;
+		    case 1: *val -= a; break;
+		    case 2: *val += a; break;
+		    case 3: if( *val > a ) *val = a; break;
+		    case 4: if( *val < a ) *val = a; break;
+		}
+		mode = 0;
+		perc = 0;
 		break;
 	    case CSUB: mode = 1; break;
 	    case CADD: mode = 2; break;
 	    case CPERC: perc = 1; break;
+	    case CBACKVAL0: backval = 0; break;
+	    case CBACKVAL1: backval = 1; break;
 	    case CMAXVAL: mode = 3; break;
 	    case CMINVAL: mode = 4; break;
+	    case CPUTR0: wm->creg0 = *val; break;
+	    case CGETR0: *val = wm->creg0; break;
+	    case CEND: brk = 1; break;
 	    default: 
-		if( mode == 0 ) 
+		switch( mode )
 		{
-		    if( perc )
-		    {
-			*val = ( c[ p ] * size ) / 100;
-		    }
-		    else
-		    {
-			*val = c[ p ]; //Simple number
-		    }
-		}
-		if( mode == 1 ) 
-		{
-		    //Sub:
-		    if( perc )
-		    {
-			*val -= ( c[ p ] * size ) / 100;
-		    }
-		    else
-		    {
-			*val -= c[ p ]; //Simple number
-		    }
-		}
-		if( mode == 2 ) 
-		{
-		    //Add:
-		    if( perc )
-		    {
-			*val += ( c[ p ] * size ) / 100;
-		    }
-		    else
-		    {
-			*val += c[ p ]; //Simple number
-		    }
-		}
-		if( mode == 3 ) 
-		{
-		    //Max val:
-		    if( perc )
-		    {
-			if( *val > ( c[ p ] * size ) / 100 ) *val = ( c[ p ] * size ) / 100;
-		    }
-		    else
-		    {
-			if( *val > c[ p ] ) *val = c[ p ]; //Simple number
-		    }
-		}
-		if( mode == 4 ) 
-		{
-		    //Min val:
-		    if( perc )
-		    {
-			if( *val < ( c[ p ] * size ) / 100 ) *val = ( c[ p ] * size ) / 100;
-		    }
-		    else
-		    {
-			if( *val < c[ p ] ) *val = c[ p ]; //Simple number
-		    }
+		    case 0:
+			if( perc )
+			{
+			    *val = ( c[ p ] * size ) / 100;
+			}
+			else
+			{
+			    if( backval )
+			    {
+				*val = size - c[ p ];
+			    }
+			    else
+			    {
+				*val = c[ p ]; //Simple number
+			    }
+			}
+			break;
+		
+		    case 1:
+			//Sub:
+			if( perc )
+			{
+			    *val -= ( c[ p ] * size ) / 100;
+			}
+			else
+			{
+			    if( backval )
+			    {
+				*val -= size - c[ p ];
+			    }
+			    else
+			    {
+				*val -= c[ p ]; //Simple number
+			    }
+			}
+			break;
+
+		    case 2:
+			//Add:
+			if( perc )
+			{
+			    *val += ( c[ p ] * size ) / 100;
+			}
+			else
+			{
+			    if( backval )
+			    {
+				*val += size - c[ p ];
+			    }
+			    else
+			    {
+				*val += c[ p ]; //Simple number
+			    }
+			}
+			break;
+		
+		    case 3:
+			//Max val:
+			if( perc )
+			{
+			    if( *val > ( c[ p ] * size ) / 100 ) *val = ( c[ p ] * size ) / 100;
+			}
+			else
+			{
+			    if( backval )
+			    {
+				if( *val > size - c[ p ] ) *val = size - c[ p ];
+			    }
+			    else
+			    {
+				if( *val > c[ p ] ) *val = c[ p ]; //Simple number
+			    }
+			}
+			break;	
+		    
+		    case 4:
+			//Min val:
+			if( perc )
+			{
+			    if( *val < ( c[ p ] * size ) / 100 ) *val = ( c[ p ] * size ) / 100;
+			}
+			else
+			{
+			    if( backval )
+			    {
+				if( *val < size - c[ p ] ) *val = size - c[ p ];
+			    }
+			    else
+			    {
+				if( *val < c[ p ] ) *val = c[ p ]; //Simple number
+			    }
+			}
+			break;
 		}
 		mode = 0;
 		perc = 0;
@@ -864,7 +728,7 @@ void run_controller( WINDOWPTR win, int *c, int *val, int size, window_manager *
 
 void recalc_controllers( WINDOWPTR win, window_manager *wm )
 {
-    if( win && win->controllers_calculated == 0 )
+    if( win && win->controllers_calculated == 0 && win->parent )
     {
 	if( !win->controllers_defined ) 
 	    win->controllers_calculated = 1;
@@ -926,25 +790,29 @@ void recalc_region( WINDOWPTR win, MWCLIPREGION *reg, int cut_x, int cut_y, int 
 		wm );
 	}
     }
-#ifdef OPENGLCOMP
-    MWCLIPREGION *win_region;
-    win_region = GdAllocRectRegion( x1, y1, x2, y2 );
-    if( win->reg ) GdDestroyRegion( win->reg );
-    win->reg = win_region;
-#else
-    MWCLIPREGION *win_region;
-    if( x1 > x2 || y1 > y2 )
-	win_region = GdAllocRegion();
+    if( win->reg == 0 )
+    {
+	if( x1 > x2 || y1 > y2 )
+	    win->reg = GdAllocRegion();
+	else
+	    win->reg = GdAllocRectRegion( x1, y1, x2, y2 );
+    }
     else
-	win_region = GdAllocRectRegion( x1, y1, x2, y2 );
+    {
+	if( x1 > x2 || y1 > y2 )
+	{
+	    GdSetRectRegion( win->reg, 0, 0, 0, 0 );
+	}
+	else
+	{
+	    GdSetRectRegion( win->reg, x1, y1, x2, y2 );
+	}
+    }
     //reg - current invisible region.
     //Calc corrected win region:
-    GdSubtractRegion( win_region, win_region, reg );
-    if( win->reg ) GdDestroyRegion( win->reg );
-    win->reg = win_region;
+    GdSubtractRegion( win->reg, win->reg, reg );
     //Calc corrected invisible region:
-    GdUnionRegion( reg, reg, win_region );
-#endif
+    GdUnionRegion( reg, reg, win->reg );
 }
 
 void clean_regions( WINDOWPTR win, window_manager *wm )
@@ -953,9 +821,11 @@ void clean_regions( WINDOWPTR win, window_manager *wm )
     {
 	for( int c = 0; c < win->childs_num; c++ )
 	    clean_regions( win->childs[ c ], wm );
-	if( win->reg ) GdDestroyRegion( win->reg );
+	if( win->reg ) 
+	{
+	    GdSetRectRegion( win->reg, 0, 0, 0, 0 );
+	}
 	win->controllers_calculated = 0;
-	win->reg = 0;
     }
 }
 
@@ -1020,8 +890,8 @@ void set_focus_win( WINDOWPTR win, window_manager *wm )
 	{
 	    //Send FOCUS event:
 	    //In this event's handling user can remember previous focused window (wm->prev_focus_win)
-	    evt2.event_type = EVT_FOCUS;
-	    evt2.event_win = new_focus_win;
+	    evt2.type = EVT_FOCUS;
+	    evt2.win = new_focus_win;
 	    handle_event( &evt2, wm );
 	}
 
@@ -1030,8 +900,8 @@ void set_focus_win( WINDOWPTR win, window_manager *wm )
 	    if( prev_focus_win )
 	    {
 		//Send UNFOCUS event:
-		evt2.event_type = EVT_UNFOCUS;
-		evt2.event_win = prev_focus_win;
+		evt2.type = EVT_UNFOCUS;
+		evt2.win = prev_focus_win;
 		handle_event( &evt2, wm );
 	    }
 	}
@@ -1054,15 +924,16 @@ int find_focus_window( WINDOWPTR win, WINDOW **focus_win, window_manager *wm )
     return 0;
 }
 
-int send_event( 
+int send_event(
     WINDOWPTR win,
-    int event_type, 
-    int all_childs,
-    int x, 
-    int y, 
-    int mouse_button, 
-    int button, 
+    int type,
+    int flags,
+    int x,
+    int y,
+    int key,
+    int scancode,
     int pressure,
+    UTF32_CHAR unicode,
     window_manager* wm )
 {
     int retval = 0;
@@ -1074,16 +945,22 @@ int send_event(
 	//Get pointer to new event:
 	int new_ptr = ( wm->current_event_num + wm->events_count ) & ( EVENTS - 1 );
 
+	if( type == EVT_BUTTONDOWN || type == EVT_BUTTONUP )
+	{
+	    if( key >= 0x41 && key <= 0x5A ) //Capital
+		key += 0x20; //Make it small
+	}
+
 	//Save new event to FIFO buffer:
-	wm->events[ new_ptr ].event_type = event_type;
-	wm->events[ new_ptr ].event_time = time_ticks();
-	wm->events[ new_ptr ].event_win = win;
-	wm->events[ new_ptr ].all_childs = all_childs;
+	wm->events[ new_ptr ].type = (uint16)type;
+	wm->events[ new_ptr ].time = time_ticks();
+	wm->events[ new_ptr ].win = win;
+	wm->events[ new_ptr ].flags = (uint16)flags;
 	wm->events[ new_ptr ].x = (int16)x;
 	wm->events[ new_ptr ].y = (int16)y;
-	wm->events[ new_ptr ].mouse_button = mouse_button;
-	wm->events[ new_ptr ].button = button;
-	wm->events[ new_ptr ].pressure = pressure;
+	wm->events[ new_ptr ].key = (uint16)key;
+	wm->events[ new_ptr ].pressure = (uint16)pressure;
+	wm->events[ new_ptr ].unicode = unicode;
 
 	//Increment number of unhandled events:
 	volatile int new_event_count = wm->events_count + 1;
@@ -1105,13 +982,13 @@ int check_event( sundog_event *evt, window_manager *wm )
 {
     if( evt == 0 ) return 1;
 
-    if( evt->event_win == 0 )
+    if( evt->win == 0 )
     {
 	if( !wm->wm_initialized ) return 1;
 	
-	if( evt->event_type == EVT_MOUSEBUTTONDOWN ||
-	    evt->event_type == EVT_MOUSEBUTTONUP ||
-	    evt->event_type == EVT_MOUSEMOVE )
+	if( evt->type == EVT_MOUSEBUTTONDOWN ||
+	    evt->type == EVT_MOUSEBUTTONUP ||
+	    evt->type == EVT_MOUSEMOVE )
 	{
 	    if( evt->x < 0 ) return 1;
 	    if( evt->y < 0 ) return 1;
@@ -1122,24 +999,24 @@ int check_event( sundog_event *evt, window_manager *wm )
 	    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	    if( wm->last_unfocused_window )
 	    {
-		evt->event_win = wm->last_unfocused_window;
-		if( evt->event_type == EVT_MOUSEBUTTONUP )
+		evt->win = wm->last_unfocused_window;
+		if( evt->type == EVT_MOUSEBUTTONUP )
 		{
 		    wm->last_unfocused_window = 0;
 		}
 		return 0;
 	    }
 	    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	    if( evt->event_type == EVT_MOUSEBUTTONDOWN )
+	    if( evt->type == EVT_MOUSEBUTTONDOWN )
 	    { //If mouse click:
-		if( evt->mouse_button & BUTTON_SCROLLUP ||
-		    evt->mouse_button & BUTTON_SCROLLDOWN )
+		if( evt->key & MOUSE_BUTTON_SCROLLUP ||
+		    evt->key & MOUSE_BUTTON_SCROLLDOWN )
 		{
 		    //Mouse scroll up/down...
 		    WINDOWPTR scroll_win = 0;
 		    if( find_focus_window( wm->root_win, &scroll_win, wm ) )
 		    {
-			evt->event_win = scroll_win;
+			evt->win = scroll_win;
 			return 0;
 		    }
 		    else
@@ -1157,7 +1034,7 @@ int check_event( sundog_event *evt, window_manager *wm )
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			if( focus_win->flags & WIN_FLAG_ALWAYS_UNFOCUSED )
 			{
-			    evt->event_win = focus_win;
+			    evt->win = focus_win;
 			    wm->last_unfocused_window = focus_win;
 			    return 0;
 			}
@@ -1175,15 +1052,15 @@ int check_event( sundog_event *evt, window_manager *wm )
 	if( wm->focus_win )
 	{
 	    //Set pointer to window:
-	    evt->event_win = wm->focus_win;
+	    evt->win = wm->focus_win;
 
-	    if( evt->event_type == EVT_MOUSEBUTTONDOWN && 
-		( evt->event_time - wm->focus_win->click_time ) < ( DOUBLE_CLICK_PERIOD * time_ticks_per_second() ) / 1000 )
+	    if( evt->type == EVT_MOUSEBUTTONDOWN && 
+		( evt->time - wm->focus_win->click_time ) < ( DOUBLE_CLICK_PERIOD * time_ticks_per_second() ) / 1000 )
 	    {
-		evt->event_type = EVT_MOUSEDOUBLECLICK;
-		wm->focus_win->click_time = evt->event_time - time_ticks_per_second() * 10; //Reset click time
+		evt->type = EVT_MOUSEDOUBLECLICK;
+		wm->focus_win->click_time = evt->time - time_ticks_per_second() * 10; //Reset click time
 	    }
-	    if( evt->event_type == EVT_MOUSEBUTTONDOWN ) wm->focus_win->click_time = evt->event_time;
+	    if( evt->type == EVT_MOUSEBUTTONDOWN ) wm->focus_win->click_time = evt->time;
 	}
     }
 
@@ -1192,19 +1069,19 @@ int check_event( sundog_event *evt, window_manager *wm )
 
 void handle_event( sundog_event *evt, window_manager *wm )
 {
-    if( evt->event_type == EVT_MOUSEDOUBLECLICK )
+    if( evt->type == EVT_MOUSEDOUBLECLICK )
     {
-	evt->event_type = EVT_MOUSEBUTTONDOWN;
+	evt->type = EVT_MOUSEBUTTONDOWN;
 	handle_event( evt, wm );
-	evt->event_type = EVT_MOUSEDOUBLECLICK;
+	evt->type = EVT_MOUSEDOUBLECLICK;
     }
-    if( !user_event_handler( evt, wm ) || evt->all_childs )
+    if( !user_event_handler( evt, wm ) || ( evt->flags & EVT_FLAG_AC ) )
     {
 	//Event hot handled by simple event handler.
 	//Send it to window:
 	if( handle_event_by_window( evt, wm ) == 0 )
 	{
-	    evt->event_win = wm->handler_of_unhandled_events;
+	    evt->win = wm->handler_of_unhandled_events;
 	    handle_event_by_window( evt, wm );
 	}
     }
@@ -1213,7 +1090,7 @@ void handle_event( sundog_event *evt, window_manager *wm )
 int handle_event_by_window( sundog_event *evt, window_manager *wm )
 {
     int retval = 0;
-    WINDOWPTR win = evt->event_win;
+    WINDOWPTR win = evt->win;
     if( win )
     {
 	if( win->flags & WIN_FLAG_TRASH )
@@ -1222,31 +1099,29 @@ int handle_event_by_window( sundog_event *evt, window_manager *wm )
 	    retval = 1;
 	}
 	else
-	if( evt->event_type == EVT_DRAW ) 
+	if( evt->type == EVT_DRAW ) 
 	{
 	    draw_window( win, wm );
 	    retval = 1;
 	}
 	else
 	{
-	    sundog_font *prev_font = wm->user_font;
-	    if( win->user_font ) wm->user_font = win->user_font;
 	    if( win->win_handler )
 	    {
-		if( !win->win_handler( evt, wm ) || evt->all_childs )
+		if( !win->win_handler( evt, wm ) || ( evt->flags & EVT_FLAG_AC ) )
 		{
 		    //Send event to children:
 		    for( int c = 0; c < win->childs_num; c++ )
 		    {
-			evt->event_win = win->childs[ c ];
-			if( handle_event_by_window( evt, wm ) && evt->all_childs == 0 )
+			evt->win = win->childs[ c ];
+			if( handle_event_by_window( evt, wm ) && !( evt->flags & EVT_FLAG_AC ) )
 			{
-			    evt->event_win = win;
+			    evt->win = win;
 			    retval = 1;
 			    goto end_of_handle;
 			}
 		    }
-		    evt->event_win = win;
+		    evt->win = win;
 		}
 		else
 		{
@@ -1255,10 +1130,9 @@ int handle_event_by_window( sundog_event *evt, window_manager *wm )
 		}
 	    }
 end_of_handle:
-	    wm->user_font = prev_font;
 	    if( win == wm->root_win )
 	    {
-		if( evt->event_type == EVT_SCREENRESIZE )
+		if( evt->type == EVT_SCREENRESIZE )
 		{
 		    //On screen resize:
 		    recalc_regions( wm );
@@ -1289,8 +1163,6 @@ int EVENT_LOOP_BEGIN( sundog_event *evt, window_manager *wm )
 	}
     }
     device_event_handler( wm );
-    evt->event_type = 0;
-    user_event_handler( evt, wm );
     if( wm->events_count )
     {
 	sundog_mutex_lock( &wm->events_mutex );
@@ -1317,8 +1189,7 @@ int EVENT_LOOP_BEGIN( sundog_event *evt, window_manager *wm )
 
 int EVENT_LOOP_END( window_manager *wm )
 {
-    wm->frame_counter++;
-    user_screen_redraw( wm );
+    user_event_handler( &g_sundog_null_evt, wm );
     device_redraw_framebuffer( wm );
     if( wm->exit_request ) return 1;
     return 0;
@@ -1389,12 +1260,12 @@ struct decorator_data
 int decorator_handler( sundog_event *evt, window_manager *wm )
 {
     int retval = 0;
-    WINDOWPTR win = evt->event_win;
+    WINDOWPTR win = evt->win;
     decorator_data *data = (decorator_data*)win->data;
     int dx, dy;
     int rx = evt->x - win->screen_x;
     int ry = evt->y - win->screen_y;
-    switch( evt->event_type )
+    switch( evt->type )
     {
 	case EVT_GETDATASIZE:
 	    retval = sizeof( decorator_data );
@@ -1403,7 +1274,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	    data->fullscreen = 0;
 	    break;
 	case EVT_MOUSEDOUBLECLICK:
-	    if( evt->mouse_button & BUTTON_LEFT )
+	    if( evt->key == MOUSE_BUTTON_LEFT )
 	    {
 		//Make fullscreen:
 		if( data->fullscreen == 1 )
@@ -1434,7 +1305,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	    retval = 1;
 	    break;
 	case EVT_MOUSEBUTTONDOWN:
-	    if( evt->mouse_button & BUTTON_LEFT )
+	    if( evt->key == MOUSE_BUTTON_LEFT )
 	    {
 		//Bring to front: ================================================
 		int i;
@@ -1473,7 +1344,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	    retval = 1;
 	    break;
 	case EVT_MOUSEMOVE:
-	    if( evt->mouse_button & BUTTON_LEFT )
+	    if( evt->key == MOUSE_BUTTON_LEFT )
 	    {
 		dx = evt->x - data->start_pen_x;
 		dy = evt->y - data->start_pen_y;
@@ -1541,7 +1412,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	    win_draw_box( win, 0, 0, win->xsize, win->ysize, win->color, wm );
 	    if( 0 )
 	    {
-		int ssize = string_size( win->childs[0]->name, wm );
+		int ssize = string_size( win, win->childs[0]->name, wm );
 		if( ssize > 0 )
 		{
 		    for( int ll = 0; ll < 8; ll++ )
@@ -1555,7 +1426,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	    }
 	    if( win->childs_num )
 	    {
-		win_draw_string( win, win->childs[0]->name, DECOR_BORDER_SIZE, ( DECOR_HEADER_SIZE + DECOR_BORDER_SIZE - char_y_size( wm ) ) / 2, get_color(0,0,0), win->color, wm );
+		win_draw_string( win, win->childs[ 0 ]->name, DECOR_BORDER_SIZE, ( DECOR_HEADER_SIZE + DECOR_BORDER_SIZE - char_y_size( win, wm ) ) / 2, wm->black, win->color, wm );
 		win_draw_frame( win, 0, 0, win->xsize, win->ysize, wm->decorator_border, wm );
 	    }
 	    else
@@ -1573,7 +1444,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 }
 
 WINDOWPTR new_window_with_decorator( 
-    char *name, 
+    const UTF8_CHAR *name, 
     int x, 
     int y, 
     int xsize, 
@@ -1634,42 +1505,53 @@ WINDOWPTR new_window_with_decorator(
 //## DRAWING FUNCTIONS:         ##
 //################################
 
-int char_x_size( uchar c, window_manager *wm )
+int char_x_size( WINDOWPTR win, UTF32_CHAR c, window_manager *wm )
 {
-    if( wm->user_font == 0 )
-	return 8;
+    if( c <= 0x1F ) return 0;
+    if( win->font == 0 )
+    {
+        return 8;
+    }
     else
-	return wm->user_font->real_width[ c ];
+    {
+        utf32_to_win1251( c, c );
+        return g_font1[ 1 + c ];
+    }
 }
 
-int char_y_size( window_manager *wm )
+int char_y_size( WINDOWPTR win, window_manager *wm )
 {
-    if( wm->user_font == 0 )
-	return 8;
+    if( win->font == 0 )
+    {
+        return 8;
+    }
     else
-	return wm->user_font->max_ysize;
+    {
+        return g_font1[ 0 ];
+    }
 }
 
-int string_size( char *str, window_manager *wm )
+int string_size( WINDOWPTR win, const UTF8_CHAR *str, window_manager *wm )
 {
     int size = 0;
-    int p = 0;
-    while( str[ p ] )
+    while( *str )
     {
-	size += char_x_size( (unsigned char)str[ p ], wm );
-	p++;
+	UTF32_CHAR c32;
+	str += utf8_to_utf32_char( str, &c32 );
+	size += char_x_size( win, c32, wm );
     }    
     return size;
 }
 
 void win_draw_lock( WINDOWPTR win, window_manager *wm )
 {
-    device_screen_lock( wm );
+    wm->screen_changed++;
+    device_screen_lock( win, wm );
 }
 
 void win_draw_unlock( WINDOWPTR win, window_manager *wm )
 {
-    device_screen_unlock( wm );
+    device_screen_unlock( win, wm );
 }
 
 void win_draw_box( WINDOWPTR win, int x, int y, int xsize, int ysize, COLOR color, window_manager *wm )
@@ -1764,17 +1646,15 @@ void win_draw_bitmap_ext(
     int dest_ysize,
     int source_x,
     int source_y,
-    int source_xsize,
-    int source_ysize,
-    COLOR *data, 
+    sundog_image *data, 
     window_manager *wm )
 {
     if( source_x < 0 ) { dest_xsize += source_x; x -= source_x; source_x = 0; }
     if( source_y < 0 ) { dest_ysize += source_y; y -= source_y; source_y = 0; }
-    if( source_x >= source_xsize ) return;
-    if( source_y >= source_ysize ) return;
-    if( source_x + dest_xsize > source_xsize ) dest_xsize -= ( source_x + dest_xsize ) - source_xsize;
-    if( source_y + dest_ysize > source_ysize ) dest_ysize -= ( source_y + dest_ysize ) - source_ysize;
+    if( source_x >= data->xsize ) return;
+    if( source_y >= data->ysize ) return;
+    if( source_x + dest_xsize > data->xsize ) dest_xsize -= ( source_x + dest_xsize ) - data->xsize;
+    if( source_y + dest_ysize > data->ysize ) dest_ysize -= ( source_y + dest_ysize ) - data->ysize;
     if( dest_xsize <= 0 ) return;
     if( dest_ysize <= 0 ) return;
     if( win && win->visible && win->reg && win->reg->numRects )
@@ -1811,7 +1691,7 @@ void win_draw_bitmap_ext(
 		if( nysize < 0 ) continue;
         	
 		//Draw it:
-		device_draw_bitmap( nx, ny, nxsize, nysize, src_x, src_y, source_xsize, source_ysize, data, wm );
+		device_draw_bitmap( nx, ny, nxsize, nysize, src_x, src_y, data, wm );
 	    }
 	}
     }
@@ -1821,9 +1701,7 @@ void win_draw_bitmap(
     WINDOWPTR win, 
     int x, 
     int y, 
-    int xsize, 
-    int ysize, 
-    COLOR *data, 
+    sundog_image *data, 
     window_manager *wm )
 {
     if( win && win->visible && win->reg && win->reg->numRects )
@@ -1844,8 +1722,8 @@ void win_draw_bitmap(
 		int src_y = 0;
 		int nx = x;
 		int ny = y;
-		int nxsize = xsize;
-		int nysize = ysize;
+		int nxsize = data->xsize;
+		int nysize = data->ysize;
 		if( nx < rx1 ) { nxsize -= ( rx1 - nx ); src_x += ( rx1 - nx ); nx = rx1; }
 		if( ny < ry1 ) { nysize -= ( ry1 - ny ); src_y += ( ry1 - ny ); ny = ry1; }
 		if( nx + nxsize <= rx1 ) continue;
@@ -1858,110 +1736,106 @@ void win_draw_bitmap(
 		if( nysize < 0 ) continue;
         	
 		//Draw it:
-		device_draw_bitmap( nx, ny, nxsize, nysize, src_x, src_y, xsize, ysize, data, wm );
+		device_draw_bitmap( nx, ny, nxsize, nysize, src_x, src_y, data, wm );
 	    }
 	}
     }
 }
 
-void win_draw_char( WINDOWPTR win, int c, int x, int y, COLOR f, COLOR b, window_manager *wm )
+void win_draw_char( WINDOWPTR win, UTF32_CHAR c, int x, int y, COLOR f, COLOR b, window_manager *wm )
 {
-    if( c < 0 ) return;
-    if( wm->user_font == 0 )
+    if( c < 0x10 ) return; //Control symbols
+    //Default SunDog font is win1251.
+    //Convert from UTF32 to WIN1251:
+    utf32_to_win1251( c, c );
+    //Draw:
+    uchar xsize;
+    uchar ysize;
+    uchar *font;
+    if( win->font == 0 )
     {
-	COLOR bmp[ 8 * 8 ];
-	c *= 8;
-	int ptr = 0;
-	for( int l = 0; l < 8; l++ )
-	{
-	    uchar v = font8x8[ c ]; c++;
-	    for( int x = 0; x < 8; x++ )
-	    {
-		if( v & 0x80 )
-		    bmp[ ptr ] = f;
-		else
-		    bmp[ ptr ] = b;
-		v <<= 1;
-		ptr++;
-	    }
-	}
-	win_draw_bitmap( win, x, y, 8, 8, bmp, wm );
+	font = g_font0;
+	xsize = 8;
+	ysize = 8;
     }
     else
     {
-	int xsize = wm->user_font->xsize[ c ];
-	int ysize = wm->user_font->ysize[ c ];
-	int real_width = wm->user_font->real_width[ c ];
-	int descent = wm->user_font->descent;
-	int y_offset = wm->user_font->y_offset[ c ];
-	int bytes = xsize / 8;
-	if( xsize % 8 ) bytes++;
-	int fp = wm->user_font->offset[ c ];
-	COLORPTR bmp = wm->user_font->rendered;
-	int ptr = 0;
-	int max_ptr = real_width * wm->user_font->max_ysize;
-	if( ysize < wm->user_font->max_ysize )
-	{
-	    for( int a = 0; a < ( wm->user_font->max_ysize - ysize - ( descent - y_offset ) ) * real_width; a++ )
-		bmp[ ptr++ ] = b;
-	}
-	for( int l = 0; l < ysize; l++ )
-	{
-	    int xx = xsize;
-	    for( int bt = 0; bt < bytes; bt++ )
-	    {
-		uchar v = wm->user_font->data[ fp ];
-		fp++;
-		for( int cx = 0; ( cx < 8 ) && ( xx > 0 ); cx++, xx-- )
-		{
-		    if( v & 0x80 )
-			bmp[ ptr ] = f;
-		    else
-			bmp[ ptr ] = b;
-		    v <<= 1;
-		    ptr++;
-		}
-	    }
-	    if( xsize < real_width ) 
-	    {
-		for( int a = 0; a < ( real_width - xsize ); a++ ) bmp[ ptr++ ] = b;
-	    }
-	}
-	if( ptr < max_ptr )
-	{
-	    for( ; ptr < max_ptr; ) bmp[ ptr++ ] = b;
-	}
-	win_draw_bitmap( 
-	    win, 
-	    x, y, 
-	    real_width, 
-	    wm->user_font->max_ysize, 
-	    wm->user_font->rendered, 
-	    wm );
+	font = g_font1;
+	xsize = font[ 1 + c ];
+	ysize = font[ 0 ];
     }
+#if defined(OPENGL) && !defined(FRAMEBUFFER)
+    sundog_image *font_img;
+    if( win->font == 0 )
+    {
+    	font_img = g_font0_img;
+    }
+    else
+    {
+	font_img = g_font1_img;
+    }
+    font_img->color = b;
+    font_img->transp = 255;
+    win_draw_bitmap_ext( 
+        win, 
+        x, y, 
+        xsize, ysize,
+        0, 255 * 8,
+        font_img, 
+        wm );
+    font_img->color = f;
+    win_draw_bitmap_ext( 
+        win, 
+        x, y, 
+        xsize, ysize,
+        0, c * 8,
+        g_font0_img, 
+        wm );
+#else
+    sundog_image tmp_img;
+    tmp_img.xsize = xsize;
+    tmp_img.ysize = ysize;
+    tmp_img.flags = IMAGE_NATIVE_RGB | IMAGE_STATIC_SOURCE;
+    COLOR bmp[ 8 * 12 ];
+    tmp_img.data = bmp;
+    c *= ysize;
+    int ptr = 0;
+    font += 257;
+    for( int l = 0; l < ysize; l++ )
+    {
+        uchar v = font[ c ]; c++;
+	for( int x = 0; x < xsize; x++ )
+	{
+	    if( v & 0x80 )
+	        bmp[ ptr ] = f;
+	    else
+	        bmp[ ptr ] = b;
+	    v <<= 1;
+	    ptr++;
+	}
+    }
+    win_draw_bitmap( win, x, y, &tmp_img, wm );
+#endif
 }
 
-void win_draw_string( WINDOWPTR win, char *str, int x, int y, COLOR f, COLOR b, window_manager *wm )
+void win_draw_string( WINDOWPTR win, const UTF8_CHAR *str, int x, int y, COLOR f, COLOR b, window_manager *wm )
 {
-    uchar *st = (uchar*)str;
-    int p = 0;
     int start_x = x;
-    while( st[ p ] != 0 )
+    while( *str )
     {
-	if( st[ p ] == 0xA ) 
+	if( *str == 0xA ) 
 	{ 
-	    y += char_y_size( wm ); 
+	    y += char_y_size( win, wm ); 
 	    x = start_x; 
+	    str++;
 	}
 	else
 	{
-	    if( st[ p ] > 0x0F ) 
-	    {
-		win_draw_char( win, st[ p ], x, y, f, b, wm );
-	    }
-	    x += char_x_size( st[ p ], wm );
+	    UTF32_CHAR c32;
+	    str += utf8_to_utf32_char( str, &c32 );
+	    win_draw_char( win, c32, x, y, f, b, wm );
+	    x += char_x_size( win, c32, wm );
 	}
-	p++;
     }
 }
 
@@ -2069,141 +1943,25 @@ void win_draw_line( WINDOWPTR win, int x1, int y1, int x2, int y2, COLOR color, 
     }
 }
 
-//################################
-//## FONTS:                     ##
-//################################
-
-void font_load_string( char *str, int max_size, V3_FILE f )
-{
-    int p = 0;
-    int begin = 0;
-    while( 1 )
-    {
-	int c = v3_getc( f );
-	if( v3_eof( f ) ) break;
-	if( ( c >= '0' && c <= '9' ) || 
-	    ( c >= 'a' && c <= 'z' ) || 
-	    ( c >= 'A' && c <= 'Z' ) ||
-	    c == '_' )
-	{
-	    begin = 1;
-	}
-	if( begin )
-	{
-	    str[ p ] = (char)c;
-	    if( c == ' ' ) break;
-	    if( c == 0xA || c == 0xD ) break;
-	    p++;
-	    if( p >= max_size ) break;
-	}
-    }
-    str[ p ] = 0;
-}
-
-sundog_font *win_load_font( char *filename, window_manager *wm )
-{
-    sundog_font *fnt = 0;
-    V3_FILE f = v3_open( filename, "rb" );
-    if( f )
-    {
-	fnt = (sundog_font*)MEM_NEW( HEAP_DYNAMIC, sizeof( sundog_font ) );
-	char str[ 65 ];
-	int xbound = 0;
-	int ybound = 0;
-	int cur_char = 0;
-	int ptr = 0;
-	int data_size = 0;
-	for(;;)
-	{
-	    font_load_string( str, 64, f );
-	    if( v3_eof( f ) ) break;
-	    if( mem_strcmp( str, "FONTBOUNDINGBOX" ) == 0 )
-	    {
-		font_load_string( str, 64, f );
-		xbound = string_to_int( str );
-		font_load_string( str, 64, f );
-		ybound = string_to_int( str );
-		fnt->max_ysize = ybound;
-		int fntsize = xbound / 8;
-		if( xbound % 8 ) fntsize++;
-		data_size = fntsize * ybound * 256;
-		fnt->data = (uchar*)MEM_NEW( HEAP_DYNAMIC, data_size );
-	    }
-	    else
-	    if( mem_strcmp( str, "FONT_DESCENT" ) == 0 )
-	    {
-		font_load_string( str, 64, f );
-		fnt->descent = string_to_int( str );
-	    }
-	    else
-	    if( mem_strcmp( str, "ENCODING" ) == 0 )
-	    {
-		font_load_string( str, 64, f );
-		cur_char = string_to_int( str );
-		if( cur_char > 255 ) cur_char = 0;
-		fnt->offset[ cur_char ] = ptr;
-	    }
-	    else
-	    if( mem_strcmp( str, "DWIDTH" ) == 0 )
-	    {
-		font_load_string( str, 64, f );
-		fnt->real_width[ cur_char ] = string_to_int( str );
-	    }
-	    else
-	    if( mem_strcmp( str, "BBX" ) == 0 )
-	    {
-		font_load_string( str, 64, f );
-		int xs = string_to_int( str );
-		font_load_string( str, 64, f );
-		int ys = string_to_int( str );
-		font_load_string( str, 64, f );
-		font_load_string( str, 64, f );
-		int y_offset = string_to_int( str );
-		fnt->xsize[ cur_char ] = xs;
-		fnt->ysize[ cur_char ] = ys;
-		fnt->y_offset[ cur_char ] = y_offset;
-		if( fnt->real_width[ cur_char ] < fnt->xsize[ cur_char ] )
-		    fnt->real_width[ cur_char ] = fnt->xsize[ cur_char ];
-	    }
-	    else
-	    if( mem_strcmp( str, "BITMAP" ) == 0 )
-	    {
-		//Load char data:
-		for(;;)
-		{
-		    font_load_string( str, 2, f );
-		    if( str[ 0 ] == 'E' && str[ 1 ] == 'N' ) break;
-		    if( v3_eof( f ) ) break;
-		    fnt->data[ ptr ] = hex_string_to_int( str );
-		    ptr++;
-		}
-	    }
-	}
-	v3_close( f );
-    }
-    return fnt;
-}
-
-void win_remove_font( sundog_font *fnt )
-{
-    if( fnt )
-    {
-	if( fnt->data ) mem_free( fnt->data );
-	mem_free( fnt );
-    }
-}
-
 //###################################
 //### DIALOGS:                    ###
 //###################################
 
-char dialog_filename[ 1024 ];
+UTF8_CHAR dialog_filename[ 1024 ];
 
-char *dialog_open_file( char *name, char *mask, char *id, window_manager *wm )
+UTF8_CHAR *dialog_open_file( const UTF8_CHAR *name, const UTF8_CHAR *mask, const UTF8_CHAR *id, window_manager *wm )
 {
     WINDOWPTR prev_focus = wm->focus_win;
 
-    FILES_PROPS = id;
+    UTF8_CHAR *path = get_user_path();
+    int path_len = mem_strlen( (const UTF8_CHAR*)path );
+    int id_len = mem_strlen( id );
+    UTF8_CHAR *id2 = (UTF8_CHAR*)MEM_NEW( HEAP_DYNAMIC, path_len + id_len + 1 );
+    id2[ 0 ] = 0;
+    mem_strcat( id2, (const UTF8_CHAR*)path );
+    mem_strcat( id2, id );
+
+    FILES_PROPS = (const UTF8_CHAR*)id2;
     FILES_MASK = mask;
     FILES_RESULTED_FILENAME = dialog_filename;
     WINDOWPTR win = new_window_with_decorator( 
@@ -2228,18 +1986,19 @@ char *dialog_open_file( char *name, char *mask, char *id, window_manager *wm )
     }
 
     set_focus_win( prev_focus, wm );
+    
+    mem_free( id2 );
 
     if( dialog_filename[ 0 ] == 0 ) return 0;
     return dialog_filename;
 }
 
-int dialog( char *name, char *ok, char *cancel, window_manager *wm )
+int dialog( const UTF8_CHAR *name, const UTF8_CHAR *buttons, window_manager *wm )
 {
     WINDOWPTR prev_focus = wm->focus_win;
     int result = 0;
 
-    DIALOG_OK_TEXT = ok;
-    DIALOG_CANCEL_TEXT = cancel;
+    DIALOG_BUTTONS_TEXT = buttons;
     DIALOG_TEXT = name;
     DIALOG_RESULT = &result;
     WINDOWPTR win = new_window_with_decorator( 

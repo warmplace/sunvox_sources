@@ -1,6 +1,6 @@
 // Microsoft Visual C++ generated resource script.
 //
-#include "wince_res.h"
+#include "win_res.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -28,7 +28,7 @@ LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON1               ICON                    "resources/wince_icon.ico"
+IDI_ICON1               ICON                    "resources/win_icon.ico"
 #endif    // Russian resources
 /////////////////////////////////////////////////////////////////////////////
 

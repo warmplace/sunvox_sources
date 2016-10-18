@@ -233,7 +233,11 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
@@ -244,7 +248,11 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				    band = ( f * high ) / 1024 + band;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = ( ( d2 + slow ) / 2 ) / 32;
+#else
+				    outp = ( d2 + slow ) / 2;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -259,18 +267,26 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
 				    STYPE_CALC shigh = high;
 
-				    low = low + ( f * band ) / 1024;
+  				    low = low + ( f * band ) / 1024;
 				    high = inp - low - ( q * band ) / 1024;
 				    band = ( f * high ) / 1024 + band;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = ( ( d3 + shigh ) / 2 ) / 32;
+#else
+				    outp = ( d3 + shigh ) / 2;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -286,7 +302,11 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
@@ -297,7 +317,11 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				    band = ( f * high ) / 1024 + band;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = ( ( d1 + sband ) / 2 ) / 32;
+#else
+				    outp = ( d1 + sband ) / 2;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -312,7 +336,11 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
@@ -323,7 +351,11 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				    band = ( f * high ) / 1024 + band;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = ( ( d3 + snotch ) / 2 ) / 32;
+#else
+				    outp = ( d3 + snotch ) / 2;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -344,13 +376,21 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = low / 32;
+#else
+				    outp = low;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -365,13 +405,21 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = high / 32;
+#else
+				    outp = high;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -386,13 +434,21 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = band / 32;
+#else
+				    outp = band;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 
@@ -407,13 +463,21 @@ Use low \"response\" values\nfor smooth frequency, resonance\nor volume change";
 				{
 				    STYPE_CALC inp = in[ i ];
 
+				    denorm_add_white_noise( inp );
+
+#ifndef STYPE_FLOATINGPOINT
 				    inp *= 32;
+#endif
 				    STYPE_CALC low = d2 + ( f * d1 ) / 1024;
 				    STYPE_CALC high = inp - low - ( q * d1 ) / 1024;
 				    STYPE_CALC band = ( f * high ) / 1024 + d1;
 
 				    STYPE_CALC outp;
+#ifndef STYPE_FLOATINGPOINT
 				    outp = ( high + low ) / 32;
+#else
+				    outp = high + low;
+#endif
 				    outp *= vol;
 				    outp /= 256;
 

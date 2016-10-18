@@ -35,11 +35,15 @@
 }
 #define SVOX_PREC (long)16	    //sample pointer (fixed point) precision
 #define SIGNED_SUB64( v1, v1_p, v2, v2_p ) \
-{ v1 -= v2; v1_p -= v2_p; \
-if( v1_p < 0 ) { v1--; v1_p += ( (long)1 << SVOX_PREC ); } }
+{ \
+    v1 -= v2; v1_p -= v2_p; \
+    if( v1_p < 0 ) { v1--; v1_p += ( (long)1 << SVOX_PREC ); } \
+}
 #define SIGNED_ADD64( v1, v1_p, v2, v2_p ) \
-{ v1 += v2; v1_p += v2_p; \
-if( v1_p > ( (long)1 << SVOX_PREC ) - 1 ) { v1++; v1_p -= ( (long)1 << SVOX_PREC ); } }
+{ \
+    v1 += v2; v1_p += v2_p; \
+    if( v1_p > ( (long)1 << SVOX_PREC ) - 1 ) { v1++; v1_p -= ( (long)1 << SVOX_PREC ); } \
+}
 
 struct gen_channel
 {
@@ -120,7 +124,7 @@ struct sample
     uchar	    panning;
     signed char	    relative_note;
     uchar	    reserved2;
-    uchar	    name[22];
+    UTF8_CHAR	    name[ 22 ];
 	
     signed short    *data;  //Sample data
 };
@@ -129,16 +133,16 @@ struct instrument
 {
     //Offset in XM file is 0:
     ulong   instrument_size;   
-    uchar   name[22];
+    UTF8_CHAR name[ 22 ];
     uchar   type;
     uint16  samples_num;       
 
     //Offset in XM file is 29:
     //>>> Standart info block:
     ulong   sample_header_size;
-    uchar   sample_number[96];
-    uint16  volume_points[24];
-    uint16  panning_points[24];
+    uchar   sample_number[ 96 ];
+    uint16  volume_points[ 24 ];
+    uint16  panning_points[ 24 ];
     uchar   volume_points_num;
     uchar   panning_points_num;
     uchar   vol_sustain;
@@ -171,7 +175,7 @@ struct instrument
     uint16  volume_env[ ENV_TICKS ];  //each value is 0..1023
     uint16  panning_env[ ENV_TICKS ];
     
-    sample  *samples[16];
+    sample  *samples[ 16 ];
 };
 
 #define LOAD_XI_FLAG_SET_MAX_VOLUME	1
@@ -180,12 +184,38 @@ void refresh_instrument_envelope( uint16 *src, uint16 points, uint16 *dest );
 void refresh_instrument_envelopes( instrument *ins );
 void make_default_envelopes( instrument *ins );
 void bytes2frames( sample *smp );
-void new_instrument( char *name, instrument *ins );
+void new_instrument( const UTF8_CHAR *name, instrument *ins );
 void new_sample( long length, sample *smp );
-void save_wav_sample( char *filename, int synth_id, void *net, int sample_num );
-void load_wav_instrument_or_sample( V3_FILE f, char *name, int synth_id, void *net, int sample_num );
-void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net );
-void load_instrument_or_sample( char *filename, int flags, int synth_id, void *net, int sample_num );
+void save_wav_sample( 
+    UTF8_CHAR *filename, 
+    int synth_id, 
+    void *net, 
+    int sample_num );
+void *create_raw_instrument_or_sample( 
+    UTF8_CHAR *name, 
+    int synth_id, 
+    ulong data_bytes, 
+    int bits, 
+    int channels, 
+    void *net, 
+    int sample_num );
+void load_wav_instrument_or_sample( 
+    V3_FILE f, 
+    UTF8_CHAR *name, 
+    int synth_id, 
+    void *net, 
+    int sample_num );
+void load_xi_instrument( 
+    V3_FILE f, 
+    int flags, 
+    int synth_id, 
+    void *net );
+int load_instrument_or_sample( 
+    UTF8_CHAR *filename, 
+    int flags, 
+    int synth_id, 
+    void *net, 
+    int sample_num );
 void envelope( 
     gen_channel *cptr, 
     SYNTH_DATA *data,
@@ -275,14 +305,16 @@ void bytes2frames( sample *smp )
 {
     long bits = 8;
     long channels = 1;
-    if( smp->type & 16 ) bits = 16;
+    if( ( ( smp->type >> 4 ) & 3 ) == 0 ) bits = 8;
+    if( ( ( smp->type >> 4 ) & 3 ) == 1 ) bits = 16;
+    if( ( ( smp->type >> 4 ) & 3 ) == 2 ) bits = 32;
     if( smp->type & 64 ) channels = 2;
     smp->length = smp->length / ( ( bits / 8 ) * channels );
     smp->reppnt = smp->reppnt / ( ( bits / 8 ) * channels );
     smp->replen = smp->replen / ( ( bits / 8 ) * channels );
 }
 
-void new_instrument( char *name, instrument *ins )
+void new_instrument( const UTF8_CHAR *name, instrument *ins )
 {
     int a;
     
@@ -317,7 +349,11 @@ void new_sample( long length, sample *smp )
     smp->replen = 0;
 }
 
-void save_wav_sample( char *filename, int synth_id, void *net, int sample_num )
+void save_wav_sample( 
+    UTF8_CHAR *filename, 
+    int synth_id, 
+    void *net, 
+    int sample_num )
 {
     instrument *ins = (instrument*)psynth_get_chunk( synth_id, CHUNK_INS, net );
     sample *smp = (sample*)psynth_get_chunk( synth_id, CHUNK_SMP( sample_num ), net );
@@ -382,12 +418,21 @@ void save_wav_sample( char *filename, int synth_id, void *net, int sample_num )
     }
 }
 
-void load_wav_instrument_or_sample( V3_FILE f, char *name, int synth_id, void *net, int sample_num )
+//if sample_num < 0 then load WAV as new instrument
+//(frames must be signed)
+void *create_raw_instrument_or_sample( 
+    UTF8_CHAR *name, 
+    int synth_id, 
+    ulong data_bytes, 
+    int bits, 
+    int channels, 
+    void *net, 
+    int sample_num )
 {
     //Create instrument structure:
     if( sample_num < 0 ) psynth_new_chunk( synth_id, CHUNK_INS, sizeof( instrument ), 0, net );
     instrument *ins = (instrument*)psynth_get_chunk( synth_id, CHUNK_INS, net );
-    if( ins == 0 ) return;
+    if( ins == 0 ) return 0;
  
     if( sample_num < 0 )
     {
@@ -395,76 +440,93 @@ void load_wav_instrument_or_sample( V3_FILE f, char *name, int synth_id, void *n
 	refresh_instrument_envelopes( ins );
     }
 
-    ulong chunk[ 2 ]; //Chunk type and size
-    uint16 channels = 1;
-    uint16 bits = 16;
-    long other_info;
     int new_sample_num = 0;
     if( sample_num >= 0 ) new_sample_num = sample_num;
     sample *smp;
-    signed char *smp_data;
-        
-    if( ins )
-    for(;;)
+    void *smp_data;
+
+    psynth_new_chunk( synth_id, CHUNK_SMP( new_sample_num ), sizeof( sample ), 0, net );
+    smp = (sample*)psynth_get_chunk( synth_id, CHUNK_SMP( new_sample_num ), net );
+    new_sample( data_bytes, smp );
+    ins->samples[ new_sample_num ] = smp;
+    if( smp )
+    {
+	int chunk_flags = 0;
+	if( bits == 32 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_FLOAT;
+	if( bits == 16 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_16BIT;
+	if( bits == 8 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_8BIT;
+	if( channels == 2 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_STEREO;
+	psynth_new_chunk( synth_id, CHUNK_SMP_DATA( new_sample_num ), data_bytes, chunk_flags, net );
+	smp_data = psynth_get_chunk( synth_id, CHUNK_SMP_DATA( new_sample_num ), net );
+	smp->data = (short*)smp_data;
+        if( smp_data )
+	{
+	    //set sample info:
+	    smp->type = 0;
+	    if( bits == 16 ) smp->type = 1 << 4;
+	    if( bits == 32 ) smp->type = 2 << 4;
+	    if( channels == 2 ) smp->type |= 64;
+	    smp->finetune = -22;
+	    //convert sample info:
+	    bytes2frames( smp );
+	    //set number of samples:
+    	    ins->samples_num = 0;
+    	    for( int ss = 0; ss < 16; ss++ )
+    	    {
+    		if( psynth_get_chunk( synth_id, CHUNK_SMP( ss ), net ) )
+		    ins->samples_num = ss + 1;
+	    }
+	    return smp_data;
+	}
+    }
+    return 0;
+}
+
+//if sample_num < 0 then load WAV as new instrument
+void load_wav_instrument_or_sample( 
+    V3_FILE f, 
+    UTF8_CHAR *name, 
+    int synth_id, 
+    void *net, 
+    int sample_num )
+{
+    ulong chunk[ 2 ]; //Chunk type and size
+    int other_info;
+    uint16 channels = 1;
+    uint16 bits = 16;
+    
+    while( 1 )
     {
 	if( v3_eof( f ) != 0 ) break;
-	prints( "WAV: loading CHUNK" );
 	v3_read( &chunk, 8, 1, f );
 	if( chunk[ 0 ] == 0x20746D66 ) //'fmt ':
 	{
-	    prints( "WAV: loading FMT" );
 	    v3_seek( f, 2, 1 ); //Format
-	    v3_read( &channels, 2, 1, f ); channels = channels;
+	    v3_read( &channels, 2, 1, f );
 	    v3_seek( f, 10, 1 ); //Some info
-	    v3_read( &bits, 2, 1, f ); bits = bits;
-	    other_info = 16 - chunk[1];
+	    v3_read( &bits, 2, 1, f );
+	    other_info = 16 - chunk[ 1 ];
 	    if( other_info ) v3_seek( f, other_info, 1 );
 	} 
 	else
 	if( chunk[ 0 ] == 0x61746164 ) //'data':
 	{
-	    prints( "WAV: loading DATA" );
-	    psynth_new_chunk( synth_id, CHUNK_SMP( new_sample_num ), sizeof( sample ), 0, net );
-	    smp = (sample*)psynth_get_chunk( synth_id, CHUNK_SMP( new_sample_num ), net );
-	    new_sample( chunk[ 1 ], smp );
-	    ins->samples[ new_sample_num ] = smp;
-	    if( smp )
+	    void *smp_data = create_raw_instrument_or_sample( name, synth_id, chunk[ 1 ], bits, channels, net, sample_num );
+	    if( smp_data )
 	    {
-		int chunk_flags = 0;
-		if( bits == 16 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_16BIT;
-		if( bits == 8 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_8BIT;
-		if( channels == 2 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_STEREO;
-		psynth_new_chunk( synth_id, CHUNK_SMP_DATA( new_sample_num ), chunk[ 1 ], chunk_flags, net );
-	        smp_data = (signed char*)psynth_get_chunk( synth_id, CHUNK_SMP_DATA( new_sample_num ), net );
-		smp->data = (short*)smp_data;
-	        if( smp_data )
+	        v3_read( smp_data, chunk[ 1 ], 1, f ); //read sample data
+    		if( bits == 8 )
 		{
-		    prints( "WAV: loading SAMPLEDATA" );
-		    prints2( "WAV: size = ", chunk[ 1 ] );
-		    v3_read( smp_data, chunk[ 1 ], 1, f ); //read sample data
-		    if( bits == 8 )
+		    //Convert 8bit data:
+		    uchar *smp_data_u = (uchar*)smp_data;
+		    signed char *smp_data_s = (signed char*)smp_data;
+		    for( ulong s = 0; s < chunk[ 1 ]; s++ )
 		    {
-			//Convert 8bit data:
-			uchar *smp_data_u = (uchar*)smp_data;
-			for( ulong s = 0; s < chunk[ 1 ]; s++ )
-			{
-			    int v = smp_data_u[ s ];
-			    v += 128;
-			    smp_data[ s ] = (signed char)v;
-			}
+		        int v = smp_data_u[ s ];
+		        v += 128;
+		        smp_data_s[ s ] = (signed char)v;
 		    }
-		    //set sample info:
-		    if( bits == 16 ) smp->type = 16; else smp->type = 0;
-		    if( channels == 2 ) smp->type |= 64;
-		    //convert sample info:
-		    bytes2frames( smp );
 		}
-	    }
-	    ins->samples_num = 0;
-	    for( int ss = 0; ss < 16; ss++ )
-	    {
-		if( psynth_get_chunk( synth_id, CHUNK_SMP( ss ), net ) )
-		    ins->samples_num = ss + 1;
 	    }
 	    break;
 	}
@@ -472,18 +534,22 @@ void load_wav_instrument_or_sample( V3_FILE f, char *name, int synth_id, void *n
     }
 }
 
-void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net )
+void load_xi_instrument( 
+    V3_FILE f, 
+    int flags, 
+    int synth_id, 
+    void *net )
 {
     //Create instrument structure:
     psynth_new_chunk( synth_id, CHUNK_INS, sizeof( instrument ), 0, net );
     instrument *ins = (instrument*)psynth_get_chunk( synth_id, CHUNK_INS, net );
     if( ins == 0 ) return;
 
-    char name[32];
-    char temp[32];
+    UTF8_CHAR name[ 32 ];
+    char temp[ 32 ];
     if( f )
     {
-	v3_read( name, 21 - 4, 1, f ); // "Extended instrument: " 
+	v3_read( name, 21 - 12, 1, f ); // "Extended instrument: " 
 	v3_read( name, 22, 1, f ); // Instrument name
 	v3_read( temp, 23, 1, f );
 
@@ -527,10 +593,12 @@ void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net )
 	    if( smp->length )
 	    {
 		int chunk_flags = 0;
-		if( smp->type & 16 ) 
-		    chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_16BIT;
-		else
+		if( ( ( smp->type >> 4 ) & 3 ) == 0 ) 
 		    chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_8BIT;
+		if( ( ( smp->type >> 4 ) & 3 ) == 1 ) 
+		    chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_16BIT;
+		if( ( ( smp->type >> 4 ) & 3 ) == 2 ) 
+		    chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_FLOAT;
 		if( smp->type & 64 ) chunk_flags |= PSYNTH_CHUNK_FLAG_SAMPLE_STEREO;
 		psynth_new_chunk( synth_id, CHUNK_SMP_DATA( s ), smp->length, chunk_flags, net );
 		smp->data = (signed short*)psynth_get_chunk( synth_id, CHUNK_SMP_DATA( s ), net );
@@ -548,7 +616,7 @@ void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net )
 		v3_read( smp_data, len, 1, f ); //load data
 		//convert it:
 		long sp; 
-		if( smp->type & 16 )
+		if( ( ( smp->type >> 4 ) & 3 ) == 1 )
 		{ //16bit sample:
 		    signed short old_s = 0;
 		    signed short *s_data = (signed short*) smp_data;
@@ -559,10 +627,8 @@ void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net )
 			s_data[ sp ] = new_s;
 			old_s = new_s;
 		    }
-		    //convert sample info:
-		    bytes2frames( smp );
 		}
-		else
+		if( ( ( smp->type >> 4 ) & 3 ) == 0 )
 		{ //8bit sample:
 		    signed char c_old_s = 0;
 		    signed char *cs_data = (signed char*) smp_data;
@@ -574,36 +640,50 @@ void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net )
 			c_old_s = c_new_s;
 		    }
 		}
+		if( ( ( smp->type >> 4 ) & 3 ) > 0 )
+		{
+		    //convert sample info:
+		    bytes2frames( smp );
+		}
 	    }
 	}
     } //if( f )
 }
 
 //if sample_num < 0 then load sample as new instrument
-void load_instrument_or_sample( char *filename, int flags, int synth_id, void *net, int sample_num )
+int load_instrument_or_sample( 
+    UTF8_CHAR *filename, 
+    int flags, 
+    int synth_id, 
+    void *net, 
+    int sample_num )
 {
     int instr_created = 0;
     char temp[ 8 ];
     int fn;
-    for( fn = 0; ; fn++ ) if( filename[fn] == 0 ) break;
-    for( ; fn >= 0; fn-- ) if( filename[fn] == '/' ) { fn++; break; }
+    for( fn = 0; ; fn++ ) if( filename[ fn ] == 0 ) break;
+    for( ; fn >= 0; fn-- ) if( filename[ fn ] == '/' ) { fn++; break; }
     V3_FILE f = v3_open( filename, "rb" );
     if( f )
     {
 	v3_read( temp, 4, 1, f );
 
-	if( temp[0] == 'E' && temp[1] == 'x' && temp[2] == 't' )
-	{
-	    //Clear all info about previous instrument:
-	    psynth_clear_chunks( synth_id, net );
-
-	    load_xi_instrument( f, flags, synth_id, net );
-	    instr_created = 1;
-	}
-	if( temp[0] == 'R' && temp[1] == 'I' && temp[2] == 'F' )
+	if( temp[ 0 ] == 'E' && temp[ 1 ] == 'x' && temp[ 2 ] == 't' )
 	{
 	    v3_read( temp, 8, 1, f );
-	    if( temp[4] == 'W' && temp[5] == 'A' && temp[6] == 'V' )
+	    if( temp[ 5 ] == 'I' )
+	    {
+		//Clear all info about previous instrument:
+		psynth_clear_chunks( synth_id, net );
+
+		load_xi_instrument( f, flags, synth_id, net );
+		instr_created = 1;
+	    }
+	}
+	if( temp[ 0 ] == 'R' && temp[ 1 ] == 'I' && temp[ 2 ] == 'F' )
+	{
+	    v3_read( temp, 8, 1, f );
+	    if( temp[ 4 ] == 'W' && temp[ 5 ] == 'A' && temp[ 6 ] == 'V' )
 	    {
 		//Clear all info about previous instrument:
 		if( sample_num < 0 ) psynth_clear_chunks( synth_id, net );
@@ -617,10 +697,10 @@ void load_instrument_or_sample( char *filename, int flags, int synth_id, void *n
     }
     if( !instr_created )
     {
-	//Instrument type not recognized
-	//Load it as raw data:
-	//blah blah
+	//Instrument type not recognized:
+	return 1;
     }
+    return 0;
 }
 
 void envelope( 
@@ -976,17 +1056,22 @@ int SYNTH_HANDLER(
 				    //Fix it:
 				    chan->back = 0;
 				}
-				long s;            //current piece of sample (volume from -32767 to 32767)
-				long sr;           //the same as above but for the next channel (right)
-			        long s2;           //next piece of sample
-				long intr;         //interpolation scale
-				long intr2;        //interpolation scale
+				long s;            	//current piece of sample (volume from -32767 to 32767)
+				long sr;           	//the same as above but for the next channel (right)
+			        long s2;           	//next piece of sample
+				float s_f;
+				float sr_f;
+			        float s2_f;
+				long intr;         	//interpolation scale
+				long intr2;        	//interpolation scale
 				long s_offset;
 				long s_offset2;
-				signed short *pnt; //sample pointer (16 bit data)
-				signed char *cpnt; //sample pointer (8 bit data)
-				long left;         //left channel
-				long right;        //right channel
+				signed short *pnt; 	//sample pointer (16 bit data)
+				signed char *cpnt; 	//sample pointer (8 bit data)
+				float *fpnt; 		//sample pointer (32 bit data)
+				long left;         	//left channel
+				long right;        	//right channel
+				int smp_type = ( smp->type >> 4 ) & 3;
 				for( int i = ptr; i < ptr + buf_size; i++ )
 				{
 				    s_offset = chan->ptr_h;
@@ -1002,8 +1087,22 @@ next_iteration:
 					else
 					if( smp->type & 2 ) 
 					{ //ping-pong loop:
-					    chan->back = 1;
-					    SIGNED_SUB64( chan->ptr_h, chan->ptr_l, chan->delta_h, chan->delta_l );
+					    long rep_part = ( s_offset - reppnt ) / replen;
+					    if( rep_part & 1 )
+					    {
+						chan->back = 1;
+						long temp_ptr_h = chan->ptr_h;
+						long temp_ptr_l = chan->ptr_l;
+						chan->ptr_h = reppnt + replen * ( rep_part + 1 );
+						chan->ptr_l = 0;
+						SIGNED_SUB64( chan->ptr_h, chan->ptr_l, temp_ptr_h, temp_ptr_l );
+						chan->ptr_h += reppnt;
+					    }
+					    else
+					    {
+						chan->back = 0;
+						chan->ptr_h -= replen * rep_part;
+					    }
 					    s_offset = chan->ptr_h;
 					}
 				    }
@@ -1011,8 +1110,28 @@ next_iteration:
 				    { //ping-pong loop:
 					if( s_offset < reppnt && ( smp->type & 2 ) ) 
 					{
-					    chan->back = 0;
-					    SIGNED_ADD64( chan->ptr_h, chan->ptr_l, chan->delta_h, chan->delta_l );
+					    long temp_ptr_h2 = chan->ptr_h;
+					    long temp_ptr_l2 = chan->ptr_l;
+					    chan->ptr_h = reppnt;
+					    chan->ptr_l = 0;
+					    SIGNED_SUB64( chan->ptr_h, chan->ptr_l, temp_ptr_h2, temp_ptr_l2 );
+					    long rep_part = chan->ptr_h / replen;
+					    chan->ptr_h += reppnt;
+					    if( rep_part & 1 )
+					    {
+						chan->back = 1;
+						long temp_ptr_h = chan->ptr_h;
+						long temp_ptr_l = chan->ptr_l;
+						chan->ptr_h = reppnt + replen * ( rep_part + 1 );
+						chan->ptr_l = 0;
+						SIGNED_SUB64( chan->ptr_h, chan->ptr_l, temp_ptr_h, temp_ptr_l );
+						chan->ptr_h += reppnt;
+					    }
+					    else
+					    {
+						chan->back = 0;
+						chan->ptr_h -= replen * rep_part;
+					    }
 					    s_offset = chan->ptr_h;
 					}
 				    }
@@ -1036,7 +1155,7 @@ next_iteration:
 					    }
 					    //======================
 					}
-					if( smp->type & 16 ) 
+					if( smp_type == 1 ) 
 					{ //16 bit data:
 					    pnt = smp->data;
 					    if( smp->type & 64 )
@@ -1050,7 +1169,7 @@ next_iteration:
 						    s2 = pnt[ ( s_offset2 << 1 ) + 1 ]; s2 *= intr;
 						    sr += s2; sr >>= INTERP_PREC;
 						} else
-						{ s = pnt[ s_offset << 1 ]; sr = pnt[ ( s_offset << 1 ) + 1 ]; } //get stereo-data without interpolation                        			    
+						    { s = pnt[ s_offset << 1 ]; sr = pnt[ ( s_offset << 1 ) + 1 ]; } //get stereo-data without interpolation                        			    
 					    }
 					    else
 					    { //Mono sample:
@@ -1062,7 +1181,9 @@ next_iteration:
 						} else
 						    s = sr = pnt[ s_offset ];
 					    }
-					} else { //8 bit data:
+					} 
+					else if( smp_type == 0 )
+					{ //8 bit data:
 					    cpnt = (signed char*) smp->data;
 					    if( smp->type & 64 )
 					    { //Stereo sample:
@@ -1073,7 +1194,7 @@ next_iteration:
 						    s += s2; s >>= INTERP_PREC;
 						    sr = cpnt[ ( s_offset << 1 ) + 1 ]; sr <<= 8; sr *= intr2; //get data for right channel
 						    s2 = cpnt[ ( s_offset2 << 1 ) + 1 ]; s2 <<= 8; s2 *= intr;
-						    sr += s2; s >>= INTERP_PREC;
+						    sr += s2; sr >>= INTERP_PREC;
 						} else
 						    { s = cpnt[ s_offset << 1 ]; s <<= 8; sr = cpnt[ ( s_offset << 1 ) + 1 ]; sr <<= 8; }
 					    }
@@ -1086,6 +1207,33 @@ next_iteration:
 						    s += s2; s >>= INTERP_PREC; sr = s;
 						} else
 						    { s = cpnt[ s_offset ]; s <<= 8; sr = s; }
+					    }
+					}
+					else if( smp_type == 2 )
+					{ //32 bit (float) data:
+					    fpnt = (float*) smp->data;
+					    if( smp->type & 64 )
+					    { //Stereo sample:
+						if( data->ctl_smp_int ) 
+						{
+						    s_f = fpnt[ s_offset << 1 ]; s_f *= (float)intr2 / 32768.0F; //get data for left channel
+						    s2_f = fpnt[ s_offset2 << 1 ]; s2_f *= (float)intr / 32768.0F;
+						    s_f += s2_f;
+						    sr_f = fpnt[ ( s_offset << 1 ) + 1 ]; sr_f *= (float)intr2 / 32768.0F; //get data for right channel
+						    s2_f = fpnt[ ( s_offset2 << 1 ) + 1 ]; s2_f *= (float)intr / 32768.0F;
+						    sr_f += s2_f;
+						} else
+						    { s_f = fpnt[ s_offset << 1 ]; sr_f = fpnt[ ( s_offset << 1 ) + 1 ]; }
+					    }
+					    else
+					    { //Mono sample:
+						if( data->ctl_smp_int )  
+						{
+						    s_f = fpnt[ s_offset ]; s_f *= (float)intr2 / 32768.0F;
+						    s2_f = fpnt[ s_offset2 ]; s2_f *= (float)intr / 32768.0F;
+						    s_f += s2_f; sr_f = s_f;
+						} else
+						    { s_f = fpnt[ s_offset ]; sr_f = s_f; }
 					    }
 					}
 				    }
@@ -1105,16 +1253,31 @@ next_iteration:
 				    }
 				    //=====================
 
-				    left = s * (chan->l_cur>>7);  //left = 32768max * 32768max
-				    right = sr * (chan->r_cur>>7);
-				    left >>= 15;                //left = -32767..32768
-				    right >>= 15;
-
-				    STYPE res_l, res_r;
-				    INT16_TO_STYPE( res_l, left );
-				    INT16_TO_STYPE( res_r, right );
-				    out_l[ i ] += res_l;
-				    out_r[ i ] += res_r;
+				    if( smp_type < 2 )
+				    {
+					left = s * ( chan->l_cur >> 7 ); //left = 32768max * 32768max
+					right = sr * ( chan->r_cur >> 7 );
+					left >>= 15; //left = -32767..32768
+					right >>= 15;
+					STYPE res_l, res_r;
+					INT16_TO_STYPE( res_l, left );
+					INT16_TO_STYPE( res_r, right );
+					out_l[ i ] += res_l;
+					out_r[ i ] += res_r;
+				    }
+				    else
+				    {
+					float res_l, res_r;
+					res_l = s_f * ( (float)( chan->l_cur >> 7 ) / 32768.0F );
+					res_r = sr_f * ( (float)( chan->r_cur >> 7 ) / 32768.0F );
+#ifdef STYPE_FLOATINGPOINT					
+					out_l[ i ] += res_l;
+					out_r[ i ] += res_r;
+#else
+					out_l[ i ] += (STYPE)( res_l * STYPE_ONE );
+					out_r[ i ] += (STYPE)( res_r * STYPE_ONE );
+#endif
+				    }
 				}
 			    }
 			    rendered = 1;
@@ -1257,6 +1420,34 @@ render_finished:
 		if( data->channels[ c ].id == pnet->channel_id )
 		{
 		    data->channels[ c ].vel = pnet->velocity;
+		}
+	    }
+	    retval = 1;
+	    break;
+
+    	case COMMAND_SET_SAMPLE_OFFSET:
+	    if( pnet->synth_channel >= 0 && pnet->synth_channel < MAX_CHANNELS )
+	    {
+		int c = pnet->synth_channel;
+		if( data->channels[ c ].id == pnet->channel_id )
+		{
+		    instrument *ins = (instrument*)psynth_get_chunk( synth_id, CHUNK_INS, pnet );
+		    if( ins == 0 ) break;
+		    sample *smp;
+		    if( ins->samples_num && data->channels[ c ].smp_num < ins->samples_num )
+		    {
+			smp = (sample*)psynth_get_chunk( synth_id, CHUNK_SMP( data->channels[ c ].smp_num ), pnet );
+			if( smp == 0 ) break;
+		    }
+		    else
+	    	    {
+			break;
+		    }
+		    ulong new_offset = pnet->sample_offset;
+		    if( new_offset >= smp->length )
+			new_offset = smp->length - 1;
+		    data->channels[ c ].ptr_h = new_offset;
+		    data->channels[ c ].ptr_l = new_offset;
 		}
 	    }
 	    retval = 1;

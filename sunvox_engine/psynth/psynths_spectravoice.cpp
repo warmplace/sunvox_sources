@@ -222,10 +222,10 @@ int spectravoice_render_handler( void *user_data, WINDOWPTR win, window_manager 
 int spectravoice_visual_handler( sundog_event *evt, window_manager *wm )
 {
     int retval = 0;
-    WINDOWPTR win = evt->event_win;
+    WINDOWPTR win = evt->win;
     spectravoice_visual_data *data = (spectravoice_visual_data*)win->data;
-    int but_ysize = BUTTON_YSIZE( wm );
-    switch( evt->event_type )
+    int but_ysize = BUTTON_YSIZE( win, wm );
+    switch( evt->type )
     {
 	case EVT_GETDATASIZE:
 	    return sizeof( spectravoice_visual_data );
@@ -235,7 +235,7 @@ int spectravoice_visual_handler( sundog_event *evt, window_manager *wm )
 	    set_handler( data->render_button, spectravoice_render_handler, data, wm );
 	    set_window_controller( data->render_button, 0, wm, 0, CEND );
 	    set_window_controller( data->render_button, 1, wm, 0, CEND );
-	    set_window_controller( data->render_button, 2, wm, BUTTON_XSIZE( wm ), CEND );
+	    set_window_controller( data->render_button, 2, wm, BUTTON_XSIZE( win, wm ), CEND );
 	    set_window_controller( data->render_button, 3, wm, but_ysize, CEND );
 	    retval = 1;
 	    break;
@@ -485,7 +485,7 @@ int SYNTH_HANDLER(
 	    psynth_register_ctl( synth_id, "Attack", "", 0, 512, 10, 0, &data->ctl_attack, net );
 	    psynth_register_ctl( synth_id, "Release", "", 0, 512, 512, 0, &data->ctl_release, net );
 	    psynth_register_ctl( synth_id, "Polyphony", "ch.", 1, MAX_CHANNELS, 8, 1, &data->ctl_channels, net );
-	    psynth_register_ctl( synth_id, "Mode", "HQ/HQmono/LQ/LQmono/Cubic", 0, MODES - 1, MODE_HQ, 1, &data->ctl_mode, net );
+	    psynth_register_ctl( synth_id, "Mode", "HQ/HQmono/LQ/LQmono/Cubic", 0, MODES - 1, MODE_CUBIC, 1, &data->ctl_mode, net );
 	    psynth_register_ctl( synth_id, "Sustain", "off/on", 0, 1, 1, 1, &data->ctl_sustain, net );
 	    psynth_register_ctl( synth_id, "Sample size", "", 0, 4, 1, 1, &data->ctl_sample_size, net );
 	    psynth_register_ctl( synth_id, "Harmonic", "", 0, MAX_HARMONICS-1, 0, 1, &data->ctl_harm, net );

@@ -1,5 +1,5 @@
 /*
-    psynths_delay.cpp.
+    psynths_lfo.cpp.
     This file is part of the SunVox engine.
     Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
 */

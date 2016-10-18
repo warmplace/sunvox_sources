@@ -117,6 +117,7 @@ int SYNTH_HANDLER(
 			out_val = cbuf[ buf_ptr ];
 			out_val *= ctl_feedback;
 			out_val /= 256;
+			denorm_add_white_noise( out_val );
 			cbuf[ buf_ptr ] = out_val;
 
 			if( ch && ctl_stereo )
@@ -146,7 +147,9 @@ int SYNTH_HANDLER(
 		    if( ctl_dry == 256 )
 		    {
 			for( i = 0; i < sample_frames; i++ )
+			{
 			    out[ i ] += in[ i ];
+			}
 		    }
 		}
 		data->buf_ptr = buf_ptr;

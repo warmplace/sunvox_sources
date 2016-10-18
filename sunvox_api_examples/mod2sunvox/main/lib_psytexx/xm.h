@@ -383,7 +383,7 @@ void effects(channel*, xm_struct*);
 
 void new_sample(uint16 num, 
                 uint16 ins_num, 
-                char *name,
+                const char *name,
 		long length,      /*length in bytes*/
 		long type,
                 xm_struct *xm);

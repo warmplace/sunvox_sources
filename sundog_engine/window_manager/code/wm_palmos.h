@@ -1,7 +1,7 @@
 /*
     wm_palmos.h. Platform-dependent module : PalmOS
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #ifndef __WINMANAGER_PALMOS__
@@ -24,7 +24,7 @@ void wait( void )
     {
 	device_event_handler( 0 );
 	counter++;
-	if( ( counter & 0xFFFF ) == 0 ) prints( "MAIN: waiting..." );
+	if( ( counter & 0xFFFF ) == 0 ) dprint( "MAIN: waiting...\n" );
     }
 }
 
@@ -90,7 +90,7 @@ void check_screen_size( window_manager *wm )
 		need_recalc = 1;
 	    }
 	    if( need_recalc ) recalc_regions( wm );
-    	    send_event( wm->root_win, EVT_SCREENRESIZE, 1, 0, 0, 0, 0, 1023, wm );
+    	    send_event( wm->root_win, EVT_SCREENRESIZE, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, wm );
 	}
 	g_new_screen_size[ 2 ] = 0;
 	g_new_screen_size[ 3 ] = 0;
@@ -99,14 +99,14 @@ void check_screen_size( window_manager *wm )
     }
 }
 
-int device_start( char *windowname, int xsize, int ysize, int flags, window_manager *wm )
+int device_start( const UTF8_CHAR *windowname, int xsize, int ysize, int flags, window_manager *wm )
 {
     int retval = 0;
 
     //Open window:
-    prints( "MAIN: device start" );
+    dprint( "MAIN: device start\n" );
 
-    prints( "MAIN: open form" );
+    dprint( "MAIN: open form\n" );
     FrmGotoForm( 8888 );
     wait();
 
@@ -127,7 +127,7 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
 #endif
     wm->screen_xsize = xsize;
     wm->screen_ysize = ysize;
-    prints( "MAIN: device start finished" );
+    dprint( "MAIN: device start finished\n" );
 
     //Set screen-mode and palette:
     RGBColorType pal[ 256 ];
@@ -184,7 +184,7 @@ int prev_move_y = -999;
 void device_end( window_manager *wm )
 {
     //Close window:
-    prints( "MAIN: device end" );
+    dprint( "MAIN: device end\n" );
 
 #ifdef FRAMEBUFFER
     //Close screenbuffer:
@@ -194,13 +194,12 @@ void device_end( window_manager *wm )
     #endif
 #endif
 
-    prints( "MAIN: close all forms" );
+    dprint( "MAIN: close all forms\n" );
     FrmCloseAllForms();
     wait();
 }
 
 long old_chrr;
-int special_keys = 0;
 
 long device_event_handler( window_manager *wm )
 {
@@ -210,6 +209,7 @@ long device_event_handler( window_manager *wm )
     char appkey_down = 0;
     char keyup = 0;
     char device_wakeup = 0;
+    int key;
 
     EvtGetEvent( &event, 0 );
 
@@ -218,29 +218,29 @@ long device_event_handler( window_manager *wm )
 	keyup = 1;
 	//Native ARM mode:
 	UInt16 *ptr = (UInt16*)&event;
-	chrr = BSwap16( ptr[4] );
-	x = BSwap16( ptr[2] );
-	y = BSwap16( ptr[3] );
-	switch( BSwap16(event.eType) ) 
+	chrr = BSwap16( ptr[ 4 ] );
+	x = BSwap16( ptr[ 2 ] );
+	y = BSwap16( ptr[ 3 ] );
+	switch( BSwap16( event.eType ) ) 
 	{
 #ifdef PALMLOWRES
-	    case penDownEvent: send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, BUTTON_LEFT, special_keys, 1023, wm ); break;
+	    case penDownEvent: send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, MOUSE_BUTTON_LEFT, 0, 1024, 0, wm ); break;
 	    case penMoveEvent: 
 		if( x != prev_move_x || y != prev_move_y )
-		    send_event( 0, EVT_MOUSEMOVE, 0, x, y, BUTTON_LEFT, special_keys, 1023, wm );
+		    send_event( 0, EVT_MOUSEMOVE, 0, x, y, MOUSE_BUTTON_LEFT, 0, 1024, 0, wm );
 		prev_move_x = x;
 		prev_move_y = y;
 		break;
-	    case penUpEvent:   send_event( 0, EVT_MOUSEBUTTONUP, 0, x, y, BUTTON_LEFT, special_keys, 1023, wm ); break;
+	    case penUpEvent:   send_event( 0, EVT_MOUSEBUTTONUP, 0, x, y, MOUSE_BUTTON_LEFT, 0, 1024, 0, wm ); break;
 #else
-	    case penDownEvent: send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x<<1, y<<1, BUTTON_LEFT, special_keys, 1023, wm ); break;
+	    case penDownEvent: send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x << 1, y << 1, MOUSE_BUTTON_LEFT, 0, 1024, 0, wm ); break;
 	    case penMoveEvent: 
 		if( x != prev_move_x || y != prev_move_y )
-		    send_event( 0, EVT_MOUSEMOVE, 0, x<<1, y<<1, BUTTON_LEFT, special_keys, 1023, wm );
+		    send_event( 0, EVT_MOUSEMOVE, 0, x << 1, y << 1, MOUSE_BUTTON_LEFT, 0, 1024, 0, wm );
 		prev_move_x = x;
 		prev_move_y = y;
 		break;
-	    case penUpEvent:   send_event( 0, EVT_MOUSEBUTTONUP, 0, x<<1, y<<1, BUTTON_LEFT, special_keys, 1023, wm ); break;
+	    case penUpEvent:   send_event( 0, EVT_MOUSEBUTTONUP, 0, x << 1, y << 1, MOUSE_BUTTON_LEFT, 0, 1024, 0, wm ); break;
 #endif
 	    case keyDownEvent:
 		keyup = 0;
@@ -249,41 +249,41 @@ long device_event_handler( window_manager *wm )
 		if( chrr == vchrLateWakeup ) device_wakeup = 1;
 		if( chrr >= 11 && chrr <= 12 ) appkey_down = 1;
 		if( chrr >= 516 && chrr <= 519 ) appkey_down = 1;
-		ulong resulted_key;
+		key = 0;
 		switch( chrr )
 		{
-		    case 0x1E: resulted_key = 0; break; //KEY_UP; break;
-		    case 0x1F: resulted_key = 0; break; //KEY_DOWN; break;
-		    case 0x1C: resulted_key = 0; break; //KEY_LEFT; break;
-		    case 0x1D: resulted_key = 0; break; //KEY_RIGHT; break;
-		    case 0x08: resulted_key = KEY_BACKSPACE; break;
-		    case 0x0A: resulted_key = KEY_ENTER; break;
-		    case 0x0B: resulted_key = 0; break; //KEY_UP; break;
-		    case 0x0C: resulted_key = 0; break; //KEY_DOWN; break;
-		    default: resulted_key = chrr; if( resulted_key > 255 ) resulted_key = 0; break;
+		    case 0x1E: key = 0; break; //KEY_UP; break;
+		    case 0x1F: key = 0; break; //KEY_DOWN; break;
+		    case 0x1C: key = 0; break; //KEY_LEFT; break;
+		    case 0x1D: key = 0; break; //KEY_RIGHT; break;
+		    case 0x08: key = KEY_BACKSPACE; break;
+		    case 0x0A: key = KEY_ENTER; break;
+		    case 0x0B: key = 0; break; //KEY_UP; break;
+		    case 0x0C: key = 0; break; //KEY_DOWN; break;
+		    default: key = chrr; if( key > 255 ) key = 0; break;
 		}
 		if( appkey_down == 0 &&
-		    resulted_key != 0 )
+		    key != 0 )
 		{
 		    if( !keyup )
-			send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, resulted_key, 1023, wm );
+			send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, key, chrr, 1024, 0, wm );
 		    else
-			send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, resulted_key, 1023, wm );
+			send_event( 0, EVT_BUTTONUP, 0, 0, 0, key, chrr, 1024, 0, wm );
 		}
 		break;
 	}
     
 	chrr = KeyCurrentState();
-	if( chrr & 0x2 && !( old_chrr & 0x2 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, KEY_UP, 1023, wm ); }
-	if( !( chrr & 0x2 ) && old_chrr & 0x2 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, KEY_UP, 1023, wm ); }
-	if( chrr & 0x4 && !( old_chrr & 0x4 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, KEY_DOWN, 1023, wm ); }
-	if( !( chrr & 0x4 ) && old_chrr & 0x4 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, KEY_DOWN, 1023, wm ); }
-	if( chrr & 0x1000000 && !( old_chrr & 0x1000000 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, KEY_LEFT, 1023, wm ); }
-	if( !( chrr & 0x1000000 ) && old_chrr & 0x1000000 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, KEY_LEFT, 1023, wm ); }
-	if( chrr & 0x2000000 && !( old_chrr & 0x2000000 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, KEY_RIGHT, 1023, wm ); }
-	if( !( chrr & 0x2000000 ) && old_chrr & 0x2000000 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, KEY_RIGHT, 1023, wm ); }
-	if( chrr & 0x4000000 && !( old_chrr & 0x4000000 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, KEY_SPACE, 1023, wm ); special_keys = KEY_SHIFT; }
-	if( !( chrr & 0x4000000 ) && old_chrr & 0x4000000 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, KEY_SPACE, 1023, wm ); special_keys &= ~KEY_SHIFT; }
+	if( chrr & 0x2 && !( old_chrr & 0x2 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, KEY_UP, 0, 1024, 0, wm ); }
+	if( !( chrr & 0x2 ) && old_chrr & 0x2 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, KEY_UP, 0, 1024, 0, wm ); }
+	if( chrr & 0x4 && !( old_chrr & 0x4 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, KEY_DOWN, 0, 1024, 0, wm ); }
+	if( !( chrr & 0x4 ) && old_chrr & 0x4 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, KEY_DOWN, 0, 1024, 0, wm ); }
+	if( chrr & 0x1000000 && !( old_chrr & 0x1000000 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, KEY_LEFT, 0, 1024, 0, wm ); }
+	if( !( chrr & 0x1000000 ) && old_chrr & 0x1000000 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, KEY_LEFT, 0, 1024, 0, wm ); }
+	if( chrr & 0x2000000 && !( old_chrr & 0x2000000 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, KEY_RIGHT, 0, 1024, 0, wm ); }
+	if( !( chrr & 0x2000000 ) && old_chrr & 0x2000000 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, KEY_RIGHT, 0, 1024, 0, wm ); }
+	if( chrr & 0x4000000 && !( old_chrr & 0x4000000 ) ) { send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, KEY_SPACE, 0, 1024, 0, wm ); }
+	if( !( chrr & 0x4000000 ) && old_chrr & 0x4000000 ) { send_event( 0, EVT_BUTTONUP, 0, 0, 0, KEY_SPACE, 0, 1024, 0, wm ); }
 	old_chrr = chrr;
 
     } //if( wm )
@@ -299,7 +299,7 @@ long device_event_handler( window_manager *wm )
     }
 
     if( BSwap16( event.eType ) == appStopEvent ) 
-	if( wm ) send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, KEY_ESCAPE, 1023, wm );
+	if( wm ) send_event( 0, EVT_QUIT, 0, 0, 0, KEY_ESCAPE, 0, 1024, 0, wm );
 
     if( wm )
         check_screen_size( wm );
@@ -307,13 +307,13 @@ long device_event_handler( window_manager *wm )
     if( device_wakeup )
     {
 	check_screen_buffer( wm );
-	send_event( wm->root_win, EVT_DRAW, 1, 0, 0, 0, 0, 1023, wm );
+	send_event( wm->root_win, EVT_DRAW, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, wm );
     }
 
     return 0;
 }
 
-void device_screen_lock( window_manager *wm )
+void device_screen_lock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 0 )
     {
@@ -327,7 +327,7 @@ void device_screen_lock( window_manager *wm )
 	wm->screen_is_active = 0;
 }
 
-void device_screen_unlock( window_manager *wm )
+void device_screen_unlock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 1 )
     {
@@ -397,10 +397,13 @@ void device_draw_bitmap(
     int dest_x, int dest_y, 
     int dest_xs, int dest_ys,
     int src_x, int src_y,
-    int src_xs, int src_ys,
-    COLOR *data,
+    sundog_image *img,
     window_manager *wm )
 {
+    int src_xs = img->xsize;
+    int src_ys = img->ysize;
+    COLORPTR data = (COLORPTR)img->data;
+
     //Create bitmap:
     bmp[ 0 ] = ( src_xs >> 8 ) & 255;
     bmp[ 1 ] = src_xs & 255;

@@ -6,24 +6,7 @@
 
 #include "psynth.h"
 
-#if defined(STYPE_FLOATINGPOINT) && defined(ARCH_X86)
-    #include <math.h>
-    static inline float
-    undenormalise( volatile float s )
-    {
-        float absx = fabs( s );
-	//very small numbers fail the first test, eliminating denormalized numbers
-	//(zero also fails the first test, but that is OK since it returns zero.)
-	//very large numbers fail the second test, eliminating infinities.
-	//Not-a-Numbers fail both tests and are eliminated.
-	return ( absx > 1e-15 && absx < 1e15 ) ? s : 0.0F;
-    }
-#else
-    #define undenormalise( s ) s
-#endif
-
 #ifdef STYPE_FLOATINGPOINT
-    #include <math.h>
 #else
     #define COEF_SIZE	11
 #endif
@@ -248,10 +231,11 @@ int ff_do( ff *f, STYPE *out, STYPE *in, int samples_num, int add )
     for( int i = 0; i < samples_num; i++ )
     {
 	STYPE_CALC inp = in[ i ];
+	denorm_add_white_noise( inp );
 	STYPE_CALC val = 
 	    b0a0 * inp + b2a0 * x2 -
 	    a1a0 * y1 - a2a0 * y2;
-	val = undenormalise( val );
+	//val = undenormalise( val );
 	x2 = x1;
 	x1 = inp;
 	y2 = y1;

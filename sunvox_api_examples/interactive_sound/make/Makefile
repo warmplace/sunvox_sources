@@ -16,8 +16,6 @@ CFLAGS = -O3 -s
 ifeq ($(MAKECMDGOALS),palm)
     SDK = /usr/local/share/palmdev/sdk-5r3/include/
     SUNDOG_DEFINES = \
-	-DARCH_ARM \
-	-DPALMOS \
 	-DCOLOR8BITS \
 	-DGRAYSCALE \
 	-DDIRECTDRAW \
@@ -33,16 +31,18 @@ ifeq ($(MAKECMDGOALS),linux)
     # SDL:
     LIBS = -L/usr/X11R6/lib -lpthread -lrt -lstdc++ -lSDL -lasound
     SUNDOG_DEFINES = \
-	-DARCH_X86 \
-	-DLINUX \
 	-DDIRECTDRAW \
 	-DCOLOR32BITS \
 	-DSTYPE_FLOAT
 endif
+ifeq ($(MAKECMDGOALS),win32)
+    SUNDOG_DEFINES = \
+	-DCOLOR32BITS \
+	-DGDI \
+	-DSTYPE_FLOAT
+endif
 ifeq ($(MAKECMDGOALS),wince)
     SUNDOG_DEFINES = \
-	-DARCH_ARM \
-	-DWINCE \
 	-DCOLOR16BITS \
 	-DDIRECTDRAW \
 	-DRGB565 \

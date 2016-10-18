@@ -29,7 +29,7 @@
 
 void new_sample( uint16 num, 
                  uint16 ins_num, 
-                 char *name,
+                 const char *name,
 		 long length,      /*length in bytes*/
 		 long type,
                  xm_struct *xm )
@@ -54,7 +54,7 @@ void new_sample( uint16 num,
     smp->data = 0;
 
     //create sample data:
-    prints( "SMP: Creating the sample data" );
+    dprint( "SMP: Creating the sample data\n" );
     if( length ) 
     {
 	data = (signed short*) mem_new( 1, length, "sample data", ins_num+(num<<8) );
@@ -76,7 +76,7 @@ void new_sample( uint16 num,
     
     //save created sample:
     ins->samples[num] = smp;
-    prints( "SMP: Sample was created" );
+    dprint( "SMP: Sample was created\n" );
 }
 
 void clear_sample(uint16 num, uint16 ins_num, xm_struct *xm)

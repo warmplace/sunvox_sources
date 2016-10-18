@@ -18,8 +18,7 @@
 //#define PALMOS	//OS = PalmOS
 //#define OSX		//OS = OSX
 //#define X11		//X11 support
-//#define OPENGL	//OpenGL support (framebuffer)
-//#define OPENGLCOMP	//OpenGL compositor
+//#define OPENGL	//OpenGL support
 //#define GDI		//GDI support
 //#define DIRECTDRAW	//Win32: DirectDraw; PalmOS: direct write to screen; WinCE: GAPI
 //#define FRAMEBUFFER	//Use framebuffer
@@ -27,6 +26,7 @@
 //#define NOSTORAGE	//PalmOS: do not use the Storage Heap and MemSemaphores
 //#define PALMLOWRES	//PalmOS: low-density screen
 //#define ONLY44100	//Sampling frequencies other then 44100 not allowed
+//#define NODEBUG	//No debug messages
 //#define SMALLCACHE
 //#define SMALLMEMORY
 //#define ARCH_ARM
@@ -53,9 +53,9 @@ typedef signed short    int16;
 typedef unsigned long   ulong;
 typedef signed long     slong;
 
-#ifdef OPENGL
-    #define FRAMEBUFFER
-#endif
+typedef char		UTF8_CHAR;
+typedef unsigned short	UTF16_CHAR;
+typedef unsigned long	UTF32_CHAR;
 
 #ifdef DIRECTDRAW
     #define FRAMEBUFFER

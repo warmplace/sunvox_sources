@@ -327,5 +327,3 @@ UInt32 PilotMain( UInt16 launchCode, void *cmdPBP, UInt16 launchFlags )
     }
     return 0;
 }
-
-

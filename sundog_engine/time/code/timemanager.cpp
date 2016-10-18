@@ -1,3 +1,9 @@
+/*
+    timemanager.cpp. Time functions
+    This file is part of the SunDog engine.
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
+*/
+
 #include "../timemanager.h"
 
 #ifdef UNIX
@@ -148,24 +154,24 @@ ticks_t time_ticks( void )
 }
 
 #ifdef HIRES_TIMER
+#include <stdio.h>
 ticks_t time_ticks_per_second_hires( void )
 {
     return (ticks_t)50000;
 }
-ticks_t time_ticks_hires( void )
+ticks_t __attribute__ ((force_align_arg_pointer)) time_ticks_hires( void )
 {
 #ifdef LINUX
     timespec t;
     clock_gettime( CLOCK_PROCESS_CPUTIME_ID, &t );
     return (ticks_t)( t.tv_nsec / ( 1000000 / 50 ) ) + t.tv_sec * 50000;
 #endif
-#ifdef WIN32
-    LARGE_INTEGER ticks_per_second;
-    LARGE_INTEGER tick; 
-    QueryPerformanceFrequency( &ticks_per_second );
-    long long l = ticks_per_second.QuadPart;
-    QueryPerformanceCounter( &tick );
-    return (ticks_t)( tick.QuadPart / ( ticks_per_second.QuadPart / 50000 ) );
+#if defined(WIN) || defined(WINCE)
+    unsigned long long ticks_per_second;
+    unsigned long long tick;
+    QueryPerformanceFrequency( (LARGE_INTEGER*)&ticks_per_second );
+    QueryPerformanceCounter( (LARGE_INTEGER*)&tick );
+    return (ticks_t)( tick / ( ticks_per_second / 50000 ) );
 #endif
 }
 #endif

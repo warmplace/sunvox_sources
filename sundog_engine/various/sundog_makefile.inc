@@ -8,29 +8,29 @@ endif
 ## ------------------------------------------ ##
 
 ifeq ($(MAKECMDGOALS),palm)
-    MCC = m68k-palmos-gcc $(CFLAGS)
-    CC = arm-elf-gcc $(CFLAGS)
+    MCC = m68k-palmos-gcc $(CFLAGS) -Wno-multichar
+    CC = arm-elf-gcc $(CFLAGS) -Wno-multichar
     TARGET_DEFINES = \
 	-DARCH_ARM \
 	-DPALMOS
 endif
 ifeq ($(MAKECMDGOALS),linux)
-    CC = gcc $(CFLAGS)
-    CXX = gcc $(CFLAGS)
+    CC = gcc $(CFLAGS) -Wno-multichar -malign-double
+    CXX = gcc $(CFLAGS) -Wno-multichar -malign-double
     TARGET_DEFINES = \
 	-DARCH_X86 \
 	-DLINUX
 endif
 ifeq ($(MAKECMDGOALS),win32)
-    CC = i686-pc-mingw32-gcc $(CFLAGS) -fno-exceptions
-    CXX = i686-pc-mingw32-gcc $(CFLAGS) -fno-exceptions
+    CC = i686-pc-mingw32-gcc $(CFLAGS) -fno-exceptions -Wno-multichar -malign-double
+    CXX = i686-pc-mingw32-gcc $(CFLAGS) -fno-exceptions -Wno-multichar -malign-double
     TARGET_DEFINES = \
 	-DARCH_X86 \
 	-DWIN
 endif
 ifeq ($(MAKECMDGOALS),wince)
-    CC = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions
-    CXX = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions
+    CC = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions -Wno-multichar
+    CXX = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions -Wno-multichar
     TARGET_DEFINES = \
 	-DARCH_ARM \
 	-DWINCE
@@ -68,18 +68,40 @@ MEMORY_OBJS = memory.o
 FS_OBJS = v3nus_fs.o
 TIME_OBJS = timemanager.o
 UTILS_OBJS = utils.o
-SOUND_INCS = $(SOUND)sound.h
+SOUND_INCS = \
+    $(SOUND)sound.h \
+    $(CSOUND)sound_sndout_linux.h \
+    $(CSOUND)sound_sndout_palmos.h \
+    $(CSOUND)sound_sndout_win.h
 ifneq ($(SUNDOG_NOSOUND),true)
     SOUND_OBJS = sound_player.o sound_sndout.o
 endif
-WM_INCS = $(CWM)wm_win32.h $(CWM)wm_wince.h $(CWM)wm_opengl.h $(CWM)wm_directx.h $(CWM)wm_framebuffer.h $(CWM)wm_palmos.h $(CWM)wm_unixgraphics.h $(CWM)wm_unixgraphics_sdl.h $(WM)wmanager.h $(WM)struct.h
+WM_INCS = \
+    $(CWM)wm_win32.h \
+    $(CWM)wm_wince.h \
+    $(CWM)wm_opengl.h \
+    $(CWM)wm_directx.h \
+    $(CWM)wm_framebuffer.h \
+    $(CWM)wm_palmos.h \
+    $(CWM)wm_unixgraphics.h \
+    $(CWM)wm_unixgraphics_sdl.h \
+    $(WM)wmanager.h \
+    $(WM)struct.h
 ifneq ($(SUNDOG_NOWINDOWS),true)
-    WM_OBJS = wmanager.o wbd.o handlers.o devrgn.o
+    WM_OBJS = wmanager.o image.o wbd.o handlers.o devrgn.o
 endif
 ifneq ($(SUNDOG_NOMAIN),true)
     MAIN_OBJS = main.o
 endif
-OBJECTS = $(MEMORY_OBJS) $(DEBUG_OBJS) $(FS_OBJS) $(TIME_OBJS) $(UTILS_OBJS) $(MAIN_OBJS) $(SOUND_OBJS) $(WM_OBJS)
+OBJECTS = \
+    $(MEMORY_OBJS) \
+    $(DEBUG_OBJS) \
+    $(FS_OBJS) \
+    $(TIME_OBJS) \
+    $(UTILS_OBJS) \
+    $(MAIN_OBJS) \
+    $(SOUND_OBJS) \
+    $(WM_OBJS)
 
 # Global defines:
 DEFINES = $(TARGET_DEFINES) $(SUNDOG_DEFINES) -I$(SUNDOG)
@@ -201,6 +223,9 @@ memory.o: $(CMEM)memory.cpp $(MEM)memory.h $(CORE)core.h
 wmanager.o: $(CWM)wmanager.cpp $(WM_INCS) $(STD_INCS)
 	$(CC) $(DEFINES) -c $(CWM)wmanager.cpp
 
+image.o: $(CWM)image.cpp $(WM_INCS) $(STD_INCS)
+	$(CC) $(DEFINES) -c $(CWM)image.cpp
+
 wbd.o: $(CWM)wbd.cpp $(WM_INCS) $(STD_INCS)
 	$(CC) $(DEFINES) -c $(CWM)wbd.cpp
 
@@ -216,4 +241,3 @@ devrgn.o: $(WM)regions/devrgn.cpp $(STD_INCS)
 
 clean:
 	rm *.o *.grc *.bin armcode armdata
-

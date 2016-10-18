@@ -24,6 +24,9 @@
 #define FM_SINUS_SIZE	( 1 << FM_SINUS_SH )
 #define FM_MOD_DIV	( 32768 / ( FM_SINUS_SIZE * 8 ) ) /* max phase offset = FM_SINUS_SIZE * 8 */
 
+#define FM_PI		3.141592653
+#define FM_2PI		( FM_PI * 2 )
+
 #define GET_FREQ(res,per)  \
 { \
     if( per >= 0 ) \
@@ -164,8 +167,8 @@ int SYNTH_HANDLER(
 	case COMMAND_GET_FLAGS: retval = PSYNTH_FLAG_GENERATOR; break;
 
 	case COMMAND_INIT:
-	    psynth_register_ctl( synth_id, "C.Volume", "", 0, 256, 256, 0, &data->ctl_cvolume, net );
-	    psynth_register_ctl( synth_id, "M.Volume", "", 0, 256, 256, 0, &data->ctl_mvolume, net );
+	    psynth_register_ctl( synth_id, "C.Volume", "", 0, 256, 128, 0, &data->ctl_cvolume, net );
+	    psynth_register_ctl( synth_id, "M.Volume", "", 0, 256, 48, 0, &data->ctl_mvolume, net );
 	    psynth_register_ctl( synth_id, "Panning", "", 0, 256, 128, 0, &data->ctl_pan, net );
 	    psynth_register_ctl( synth_id, "C.Freq mul", "", 0, 16, 1, 0, &data->ctl_cmul, net );
 	    psynth_register_ctl( synth_id, "M.Freq mul", "", 0, 16, 1, 0, &data->ctl_mmul, net );
@@ -286,7 +289,6 @@ int SYNTH_HANDLER(
 		    int m_env_ptr;
 		    int c_env_sustain_ptr = ( data->ctl_ca + data->ctl_cd ) * FM_ENV_STEP;
 		    int m_env_sustain_ptr = ( data->ctl_ma + data->ctl_md ) * FM_ENV_STEP;
-		    int cvol = ( data->ctl_cvolume * chan->vel ) >> 8;
 		    int mfeedback = data->ctl_mfeedback;
 		    int16 *sin_tab = data->sin_tab;
 		    int16 *cvolume_table = data->cvolume_table;
@@ -308,6 +310,7 @@ int SYNTH_HANDLER(
 		    int outputs_num = psynth_get_number_of_outputs( synth_id, pnet );
 		    for( ch = 0; ch < outputs_num; ch++ )
 		    {
+			int cvol = ( data->ctl_cvolume * chan->vel ) >> 8;
 			STYPE *in = inputs[ ch ];
 			STYPE *out = outputs[ ch ];
         		cptr = chan->cptr;
@@ -341,7 +344,18 @@ int SYNTH_HANDLER(
 			    }
 			    if( ctl_mscaling ) mvol = ( mvol * mscaling ) / 128;
 			    if( mfeedback == 0 )
+			    {
 				cval = sin_tab[ ( ( sin_tab[ ( mptr >> (22-FM_SINUS_SH) ) & (FM_SINUS_SIZE-1) ] * mvol ) / (FM_TABLE_AMP*FM_MOD_DIV) + ( cptr >> (22-FM_SINUS_SH) ) ) & (FM_SINUS_SIZE-1) ];
+				/*cval = 
+				    (int)( sin( 
+					sin( 
+					    FM_2PI * ( (float)(mptr&((1<<22)-1)) / (float)(1<<22) )
+					) 
+					* ( (float)mvol / (float)FM_TABLE_AMP )
+					* FM_2PI * 8
+					+ ( FM_2PI * ( (float)(cptr&((1<<22)-1)) / (float)(1<<22) ) )
+				    ) * 32767 );*/
+			    }
 			    else
 			    {
 				int fb = ( sin_tab[ ( mptr >> (22-FM_SINUS_SH) ) & (FM_SINUS_SIZE-1) ] * mfeedback ) / (256*FM_MOD_DIV);

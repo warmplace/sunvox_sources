@@ -4,8 +4,8 @@
     Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
 */
 
-#include "utils/utils.h"
 #include "core/debug.h"
+#include "utils/utils.h"
 #include "psynth_net.h"
 
 #ifdef HIRES_TIMER
@@ -14,6 +14,9 @@
 
 extern int psynth_generator( PSYTEXX_SYNTH_PARAMETERS );
 extern int psynth_echo( PSYTEXX_SYNTH_PARAMETERS );
+
+//Global variables:
+unsigned int denorm_rand_state = 1;
 
 //Global tables:
 
@@ -150,7 +153,7 @@ void psynth_init( int flags, int freq, psynth_net *pnet )
 
     //Sound info:
     pnet->sampling_freq = freq;
-    pnet->global_volume = 32;
+    pnet->global_volume = 52;
 
     //Create OUTPUT:
     int out = psynth_add_synth( 0, "OUT", PSYNTH_FLAG_OUTPUT, 1024-128, 512, 0, pnet );
@@ -251,9 +254,16 @@ void psynth_render_clear( int size, psynth_net *pnet )
 #endif
 }
 
-int psynth_add_synth(  int (*synth)(  
-			    PSYTEXX_SYNTH_PARAMETERS
-		       ), char *name, int flags, int x, int y, int instr_num, psynth_net *pnet )
+int psynth_add_synth(  
+    int (*synth)(  
+	PSYTEXX_SYNTH_PARAMETERS
+    ), 
+    const UTF8_CHAR *name, 
+    int flags, 
+    int x, 
+    int y, 
+    int instr_num, 
+    psynth_net *pnet )
 {
 #ifndef NOPSYNTH
     if( pnet )
@@ -286,7 +296,7 @@ int psynth_add_synth(  int (*synth)(
 	    if( !( flags & PSYNTH_FLAG_OUTPUT ) )
 	    {
 		//Set name automatically:
-	    	char *synth_name = (char*)synth( 0, 0, 0, 0, 0, COMMAND_GET_SYNTH_NAME, 0 );
+	    	const UTF8_CHAR *synth_name = (const UTF8_CHAR*)synth( 0, 0, 0, 0, 0, COMMAND_GET_SYNTH_NAME, 0 );
 		if( synth_name == 0 || synth_name[ 0 ] == 0 ) synth_name = "SYNTH";
 		mem_strcat( pnet->items[ i ].item_name, synth_name );
 		int num = 0;
@@ -299,7 +309,7 @@ int psynth_add_synth(  int (*synth)(
 		pnet->items[ i ].name_counter = num;
 		if( num > 1 )
 		{
-		    char num_str[ 16 ];
+		    UTF8_CHAR num_str[ 16 ];
 		    int_to_string( num, num_str );
 		    mem_strcat( pnet->items[ i ].item_name, num_str );
 		}
@@ -426,7 +436,7 @@ void psynth_remove_synth( int snum, psynth_net *pnet )
 #endif
 }
 
-int psynth_get_synth_by_name( char *name, psynth_net *pnet )
+int psynth_get_synth_by_name( UTF8_CHAR *name, psynth_net *pnet )
 {
     int retval = -1;
     for( int i = 0; i < pnet->items_num; i++ )
@@ -512,6 +522,7 @@ void psynth_cpu_usage_clean( psynth_net *pnet )
     }
 #endif
 }
+
 void psynth_cpu_usage_recalc( psynth_net *pnet )
 {
 #ifdef HIRES_TIMER
@@ -699,7 +710,7 @@ void psynth_render( int start_item, int buf_size, psynth_net *pnet )
                 if( pnet->cpu_usage_enable )
                     synth_start_time = time_ticks_hires(); 
                 else
-                    synth_start_time = 0; 
+                    synth_start_time = 0;
 #endif
 		int mute = 0;
 		if( item->flags & PSYNTH_FLAG_MUTE )
@@ -707,9 +718,16 @@ void psynth_render( int start_item, int buf_size, psynth_net *pnet )
 		if( pnet->all_synths_muted )
 		{
 		    if( item->flags & PSYNTH_FLAG_SOLO )
+		    {
 			mute = 0;
+		    }
 		    else
-			mute = 1;
+		    {
+			if( item->flags & PSYNTH_FLAG_GENERATOR )
+			{
+			    mute = 1;
+			}
+		    }
 		}
 
 		result =
@@ -776,15 +794,15 @@ void psynth_render( int start_item, int buf_size, psynth_net *pnet )
 }
 
 void psynth_register_ctl( 
-    int		synth_id, 
-    char	*ctl_name,  //For example: "Delay", "Feedback"
-    char	*ctl_label, //For example: "dB", "samples"
-    CTYPE	ctl_min,
-    CTYPE	ctl_max,
-    CTYPE	ctl_def,
-    int		type,
-    CTYPE	*value,
-    void	*net )
+    int	synth_id, 
+    const UTF8_CHAR *ctl_name, //For example: "Delay", "Feedback"
+    const UTF8_CHAR *ctl_label, //For example: "dB", "samples"
+    CTYPE ctl_min,
+    CTYPE ctl_max,
+    CTYPE ctl_def,
+    int	type,
+    CTYPE *value,
+    void *net )
 {
 #ifndef NOPSYNTH
     psynth_net *pnet = (psynth_net*)net;
@@ -1011,4 +1029,3 @@ void psynth_set_number_of_inputs( int num, int synth_id, void *net )
     }
 #endif
 }
-

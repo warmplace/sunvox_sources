@@ -1,7 +1,7 @@
 /*
     memory.cpp. Multiplatform memory manager
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #include "../../core/core.h"
@@ -42,24 +42,26 @@ long get_block_value( void *ptr, long offset )
 {
     char *p = (char*)ptr; p += offset;
     long *m = (long*)p;
-    return m[0];
+    return m[ 0 ];
 }
 
 void set_block_value( void *ptr, long offset, long value )
 {
     char *p = (char*)ptr; p += offset;
     long *m = (long*)p;
-    m[0] = value;
+    m[ 0 ] = value;
 }
 
-void mem_free_all()
+int mem_free_all()
 {
+    int rv = 0;
+    
     char *ptr;
     char *next;
     long size;
     if( sstart )
     {
-        prints( "MEMORY CLEANUP (STORAGE)" );
+        dprint( "MEMORY CLEANUP (STORAGE)\n" );
 	ptr = (char*)sstart;
 	for(;;)
 	{
@@ -77,7 +79,7 @@ void mem_free_all()
     }
     if( dstart )
     {
-        prints( "MEMORY CLEANUP (DYNAMIC)" );
+        dprint( "MEMORY CLEANUP (DYNAMIC)\n" );
 	ptr = (char*)dstart;
 	for(;;)
 	{
@@ -96,14 +98,16 @@ void mem_free_all()
     dprint( "Max dynamic memory used: %d\n", max_dsize );
     dprint( "Max storage memory used: %d\n", max_ssize );
     dprint( "%d %d\n", dsize, ssize );
+    if( dsize || ssize ) rv = 1;
 #ifdef USE_FILES
     remove( "mem_storage" );
     remove( "mem_dynamic" );
 #endif
+    return rv;
 }
 
 //Main functions:
-void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long id )
+void* mem_new( unsigned long heap, unsigned long size, const UTF8_CHAR *name, unsigned long id )
 {
     unsigned long real_size = size;
     if( mem_manager_started == 0 )
@@ -115,7 +119,7 @@ void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long
 	FILE *f = fopen( "mem_storage", "rb" );
 	if( f )
 	{
-	    prints( "MEMORY CLEANUP" );
+	    dprint( "MEMORY CLEANUP\n" );
 	    char *ptr;
 	    char *next;
 	    long size;
@@ -126,7 +130,7 @@ void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long
 		next = (char*)get_block_value( ptr + MEM_BLOCK_INFO, MEM_NEXT );
 		size = get_block_value( ptr + MEM_BLOCK_INFO, MEM_SIZE );
 		MemPtrFree( ptr );
-		prints2( "FREE ", size );
+		dprint( "FREE %d\n", size );
 		if( next == 0 ) break;
 		ptr = next;
 	    }
@@ -155,8 +159,8 @@ void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long
 	mem_off();
 	if( ( heap & HEAP_MASK ) == HEAP_DYNAMIC )
 	{
-	    m[0] = (long)prev_dblock;
-	    m[1] = 0;
+	    m[ 0 ] = (long)prev_dblock;
+	    m[ 1 ] = 0;
 	    if( prev_dblock == 0 )
 	    {
 		//It is the first block. Save address:
@@ -174,14 +178,14 @@ void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long
 	    else
 	    { //It is not the first block:
 		long *prev = (long*)prev_dblock;
-		prev[1] = (long)retval;
+		prev[ 1 ] = (long)retval;
 		prev_dblock = retval;
 	    }
 	}
 	else
 	{
-	    m[0] = (long)prev_sblock;
-	    m[1] = 0;
+	    m[ 0 ] = (long)prev_sblock;
+	    m[ 1 ] = 0;
 	    if( prev_sblock == 0 )
 	    {
 		//It is the first block. Save address:
@@ -199,12 +203,12 @@ void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long
 	    else
 	    { //It is not the first block:
 		long *prev = (long*)prev_sblock;
-		prev[1] = (long)retval;
+		prev[ 1 ] = (long)retval;
 		prev_sblock = retval;
 	    }
 	}
-	m[2] = size - MEM_BLOCK_INFO;
-	m[3] = heap + 123456;
+	m[ 2 ] = size - MEM_BLOCK_INFO;
+	m[ 3 ] = heap + 123456;
 #ifdef USE_NAMES
 	uchar *mname = (uchar*)&m[4];
 	for( int np = 0; np < 15; np++ ) { mname[ np ] = name[ np ]; if( name[ np ] == 0 ) break; }
@@ -215,11 +219,11 @@ void* mem_new( unsigned long heap, unsigned long size, char *name, unsigned long
     }
     if( !m ) 
     { 
-	prints2( "MEM ALLOC ERROR ", size ); prints( name ); 
+	dprint( "MEM ALLOC ERROR %d %s\n", size, name );
 #ifdef PALMOS
-	prints( "####" );
-	prints( "####" );
-	prints( "####" );
+	dprint( "####\n" );
+	dprint( "####\n" );
+	dprint( "####\n" );
 #endif
     }
     else
@@ -236,11 +240,10 @@ void simple_mem_free( void *ptr )
     char *p2 = (char*)ptr;
     char *p = (char*)ptr; p -= MEM_BLOCK_INFO;
     ptr = (void*)p;
-#if defined(WIN) || defined(WINCE) || defined(UNIX)
-    free(ptr);
-#endif
 #ifdef PALMOS
-    MemPtrFree(ptr);
+    MemPtrFree( ptr );
+#else
+    free( ptr );
 #endif
 }
 
@@ -445,6 +448,14 @@ int mem_strlen( const char *s )
     return a;
 }
 
+int mem_strlen_utf32( const UTF32_CHAR *s )
+{
+    if( s == 0 ) return 0;
+    int a;
+    for( a = 0;; a++ ) if( s[ a ] == 0 ) break;
+    return a;
+}
+
 char *mem_strdup( const char *s1 )
 {
     int len = mem_strlen( s1 );
@@ -458,7 +469,7 @@ long mem_get_heap( void *ptr )
     if( ptr == 0 ) return 0;
     char *p = (char*)ptr; p += MEM_HEAP;
     long *m = (long*)p;
-    return ( m[0] - 123456 ) & HEAP_MASK;
+    return ( m[ 0 ] - 123456 ) & HEAP_MASK;
 }
 
 long mem_get_flags( void *ptr )
@@ -466,7 +477,7 @@ long mem_get_flags( void *ptr )
     if( ptr == 0 ) return 0;
     char *p = (char*)ptr; p += MEM_HEAP;
     long *m = (long*)p;
-    return ( m[0] - 123456 ) & (~HEAP_MASK);
+    return ( m[ 0 ] - 123456 ) & (~HEAP_MASK);
 }
 
 long mem_get_size( void *ptr )
@@ -474,7 +485,7 @@ long mem_get_size( void *ptr )
     if( ptr == 0 ) return 0;
     char *p = (char*)ptr; p += MEM_SIZE;
     long *m = (long*)p;
-    return m[0];
+    return m[ 0 ];
 }
 
 char *mem_get_name( void *ptr )
@@ -495,7 +506,7 @@ void mem_on(void)
 #ifndef NOSTORAGE
     off_count--;
     if( off_count == 0 )
-	MemSemaphoreRelease(1);
+	MemSemaphoreRelease( 1 );
 #endif
 #endif
 }
@@ -505,31 +516,31 @@ void mem_off(void)
 #ifdef PALMOS
 #ifndef NOSTORAGE
     if( off_count == 0 )
-	MemSemaphoreReserve(1);
+	MemSemaphoreReserve( 1 );
     off_count++;
 #endif
 #endif
 }
 
-void mem_palm_normal_mode(void)
+void mem_palm_normal_mode( void )
 {
 #ifdef PALMOS
 #ifndef NOSTORAGE
     if( off_count > 0 )
     { //At the moment mem protection is off:
-	MemSemaphoreRelease(1); //mem protection on
+	MemSemaphoreRelease( 1 ); //mem protection on
     }
 #endif
 #endif
 }
 
-void mem_palm_our_mode(void)
+void mem_palm_our_mode( void )
 {
 #ifdef PALMOS
 #ifndef NOSTORAGE
     if( off_count > 0 )
     {
-	MemSemaphoreReserve(1); //mem protection off
+	MemSemaphoreReserve( 1 ); //mem protection off
     }
 #endif
 #endif

@@ -1,7 +1,7 @@
 /*
     wm_wince.h. Platform-dependent module : WindowsCE
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #ifndef __WINMANAGER_WINCE__
@@ -12,7 +12,7 @@
 #include "win_res.h" //(IDI_ICON1) Must be defined in your project
 
 WCHAR *className = L"SunDogEngine";
-char *windowName = "SunDogEngine_winCE";
+const UTF8_CHAR *windowName = "SunDogEngine_winCE";
 HGLRC hGLRC;
 WNDCLASS wndClass;
 HWND hWnd = 0;
@@ -20,11 +20,7 @@ int win_flags = 0;
 
 HANDLE systemIdleTimerThread = 0;
 
-int shift_status = 0;
-int ctrl_status = 0;
-int alt_status = 0;
-int resulted_status = 0;
-int resulted_key = 0;
+int g_mod = 0;
 
 window_manager *current_wm;
 
@@ -32,10 +28,9 @@ window_manager *current_wm;
 //## DEVICE DEPENDENT FUNCTIONS: ##
 //#################################
 
-void SetupPixelFormat(HDC hDC);
-LRESULT APIENTRY WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow);
-void CreateButtonsTable( window_manager *wm );
+void SetupPixelFormat( HDC hDC );
+LRESULT APIENTRY WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam );
+int Win32CreateWindow( HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow );
 
 #ifdef FRAMEBUFFER
     COLORPTR framebuffer = 0;
@@ -72,7 +67,7 @@ DWORD WINAPI SystemIdleTimerProc( LPVOID lpParameter )
     return 0;
 }
 
-int device_start( char *windowname, int xsize, int ysize, int flags, window_manager *wm )
+int device_start( const char *windowname, int xsize, int ysize, int flags, window_manager *wm )
 {
     int retval = 0;
 
@@ -96,6 +91,8 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
 #ifdef DIRECTDRAW
     xsize = GetSystemMetrics( SM_CXSCREEN );
     ysize = GetSystemMetrics( SM_CYSCREEN );
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
 #endif
 
     wm->screen_xsize = xsize;
@@ -138,7 +135,6 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
     }
 #endif
 
-    CreateButtonsTable( wm );
     Win32CreateWindow( wm->hCurrentInst, wm->hPreviousInst, (char*)wm->lpszCmdLine, wm->nCmdShow ); //create main window
 
 #ifdef DIRECTDRAW
@@ -169,9 +165,17 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
 	wm->fb_ypitch = gx_dp.cbyPitch;
 	wm->fb_xpitch /= COLORLEN;
 	wm->fb_ypitch /= COLORLEN;
-	//LANDSCAPE MODE TESTING ***
+	//LANDSCAPE MODE ***********
 	//gx_dp.ffFormat |= kfLandscape;
-	//int ttt = wm->screen_xsize; wm->screen_xsize = wm->screen_ysize; wm->screen_ysize = ttt;
+	if( wm->screen_ysize > wm->screen_xsize )
+	{
+	    wm->fb_offset = wm->fb_ypitch * ( wm->screen_ysize - 1 );
+	    int ttt = wm->fb_ypitch;
+	    wm->fb_ypitch = wm->fb_xpitch;
+	    wm->fb_xpitch = -ttt;
+	    wm->fb_landscape = 1;
+	    ttt = wm->screen_xsize; wm->screen_xsize = wm->screen_ysize; wm->screen_ysize = ttt;
+	}
 	//**************************
     	GXSetViewport( 0, gx_dp.cyHeight, 0, 0 );
 	GXOpenInput();
@@ -240,6 +244,62 @@ void SetupPixelFormat( HDC hDC )
     if( hDC == 0 ) return;
 }
 
+uint16 win_key_to_sundog_key( uint16 vk )
+{
+    switch( vk )
+    {
+	case VK_BACK: return KEY_BACKSPACE; break;
+	case VK_TAB: return KEY_TAB; break;
+	case VK_RETURN: return KEY_ENTER; break;
+	case VK_ESCAPE: return KEY_ESCAPE; break;
+	
+	case VK_F1: return KEY_F1; break;
+	case VK_F2: return KEY_F2; break;
+	case VK_F3: return KEY_F3; break;
+	case VK_F4: return KEY_F4; break;
+	case VK_F5: return KEY_F5; break;
+	case VK_F6: return KEY_F6; break;
+	case VK_F7: return KEY_F7; break;
+	case VK_F8: return KEY_F8; break;
+	case VK_F9: return KEY_F9; break;
+	case VK_F10: return KEY_F10; break;
+	case VK_F11: return KEY_F11; break;
+	case VK_F12: return KEY_F12; break;
+	case VK_UP: if( current_wm->fb_landscape == 0 ) return KEY_UP; else return KEY_RIGHT; break;
+	case VK_DOWN: if( current_wm->fb_landscape == 0 ) return KEY_DOWN; else return KEY_LEFT; break;
+	case VK_LEFT: if( current_wm->fb_landscape == 0 ) return KEY_LEFT; else return KEY_UP; break;
+	case VK_RIGHT: if( current_wm->fb_landscape == 0 ) return KEY_RIGHT; else return KEY_DOWN; break;
+	case VK_INSERT: return KEY_INSERT; break;
+	case VK_DELETE: return KEY_DELETE; break;
+	case VK_HOME: return KEY_HOME; break;
+	case VK_END: return KEY_END; break;
+	case 33: return KEY_PAGEUP; break;
+	case 34: return KEY_PAGEDOWN; break;
+	case VK_CAPITAL: return KEY_CAPS; break;
+	case VK_SHIFT: return KEY_SHIFT; break;
+	case VK_CONTROL: return KEY_CTRL; break;
+
+	case 189: return '-'; break;
+	case 187: return '='; break;
+	case 219: return '['; break;
+	case 221: return ']'; break;
+	case 186: return ';'; break;
+	case 222: return 0x27; break; // '
+	case 188: return ','; break;
+	case 190: return '.'; break;
+	case 191: return '/'; break;
+	case 220: return 0x5C; break; // |
+	case 192: return '`'; break;
+    }
+    
+    if( vk == 0x20 ) return vk;
+    if( vk >= 0x30 && vk <= 0x39 ) return vk; //Numbers
+    if( vk >= 0x41 && vk <= 0x5A ) return vk; //Letters (capital)
+    if( vk >= 0x61 && vk <= 0x7A ) return vk; //Letters (small)
+    
+    return 0;
+}
+
 #ifdef GDI
 #define GET_WINDOW_COORDINATES \
     /*Real coordinates -> window_manager coordinates*/\
@@ -251,8 +311,15 @@ void SetupPixelFormat( HDC hDC )
 #define GET_WINDOW_COORDINATES \
     /*Real coordinates -> window_manager coordinates*/\
     x = lParam & 0xFFFF;\
-    y = lParam>>16;
-    /*if( gx_dp.ffFormat & kfLandscape ) { \
+    y = lParam>>16; \
+    if( current_wm->fb_landscape ) \
+    { \
+	int ttt = x; \
+	x = ( current_wm->screen_xsize - 1 ) - y;\
+	y = ttt; \
+    }
+    /*if( gx_dp.ffFormat & kfLandscape ) \
+    { \
 	int ttt = x; \
 	x = ( current_wm->screen_xsize - 1 ) - y;\
 	y = ttt; \
@@ -268,6 +335,7 @@ WndProc(
 {
     long x, y, d;
     short d2;
+    int key;
     POINT point;
 
     switch( message ) 
@@ -275,8 +343,11 @@ WndProc(
 	case WM_CREATE:
 	    break;
 
+	case WM_CLOSE:
+	    send_event( 0, EVT_QUIT, 0, 0, 0, 0, 0, 1024, 0, current_wm );
+	    break;
+
 	case WM_DESTROY:
-	    current_wm->exit_request = 1;
 #ifdef DIRECTDRAW
 	    GXCloseInput();
 	    GXCloseDisplay();
@@ -285,9 +356,14 @@ WndProc(
 	    break;
 
 	case WM_SIZE:
-	    current_wm->screen_xsize = (int) LOWORD(lParam);
-	    current_wm->screen_ysize = (int) HIWORD(lParam);
-	    send_event( current_wm->root_win, EVT_SCREENRESIZE, 1, 0, 0, 0, 0, 1023, current_wm );
+#ifndef DIRECTDRAW
+	    if( LOWORD(lParam) != 0 && HIWORD(lParam) != 0 )
+	    {
+		current_wm->screen_xsize = (int) LOWORD(lParam);
+		current_wm->screen_ysize = (int) HIWORD(lParam);
+		send_event( current_wm->root_win, EVT_SCREENRESIZE, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
+	    }
+#endif
 	    break;
 
 	case WM_PAINT:
@@ -295,7 +371,7 @@ WndProc(
 		PAINTSTRUCT gdi_ps;
 		BeginPaint( hWnd, &gdi_ps );
 		EndPaint( hWnd, &gdi_ps );
-		send_event( current_wm->root_win, EVT_DRAW, 1, 0, 0, 0, 0, 1023, current_wm );
+		send_event( current_wm->root_win, EVT_DRAW, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 		return 0;
 	    }
 	    break;
@@ -304,7 +380,7 @@ WndProc(
 	    if( wParam == 0x8000 ) //DBT_DEVICEARRIVAL
 	    {
 		//It may be device power ON:
-		send_event( current_wm->root_win, EVT_DRAW, 1, 0, 0, 0, 0, 1023, current_wm );
+		send_event( current_wm->root_win, EVT_DRAW, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 	    }
 	    break;
 
@@ -314,7 +390,7 @@ WndProc(
 		GXEndDraw();
 	    GXSuspend();
 	    current_wm->gx_suspended = 1;
-	    send_event( current_wm->root_win, EVT_SCREENUNFOCUS, 1, 0, 0, 0, 0, 1023, current_wm );
+	    send_event( current_wm->root_win, EVT_SCREENUNFOCUS, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 	    break;
 	case WM_SETFOCUS:
 	    if( current_wm->gx_suspended )
@@ -326,8 +402,8 @@ WndProc(
 		GXResume();
     		current_wm->gx_suspended = 0;
 	    }
-	    send_event( current_wm->root_win, EVT_SCREENFOCUS, 1, 0, 0, 0, 0, 1023, current_wm );
-	    send_event( current_wm->root_win, EVT_DRAW, 1, 0, 0, 0, 0, 1023, current_wm );
+	    send_event( current_wm->root_win, EVT_SCREENFOCUS, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
+	    send_event( current_wm->root_win, EVT_DRAW, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 	    break;
 #endif
 
@@ -338,105 +414,65 @@ WndProc(
 	    ScreenToClient( hWnd, &point );
 	    x = point.x;
 	    y = point.y;
-	    resulted_key = 0;
+	    key = 0;
 	    d = (unsigned long)wParam >> 16;
 	    d2 = (short)d;
-	    if( d2 < 0 ) resulted_key = BUTTON_SCROLLDOWN;
-	    if( d2 > 0 ) resulted_key = BUTTON_SCROLLUP;
-	    send_event( 0,
-			EVT_MOUSEBUTTONDOWN,
-			0,
-			x, 
-			y, 
-			resulted_key,
-			0,
-			1023, 
-			current_wm );
+	    if( d2 < 0 ) key = MOUSE_BUTTON_SCROLLDOWN;
+	    if( d2 > 0 ) key = MOUSE_BUTTON_SCROLLUP;
+	    send_event( 0, EVT_MOUSEBUTTONDOWN, g_mod, x, y, key, 0, 1024, 0, current_wm );
 	    break;
 	case WM_LBUTTONDOWN:
 	    GET_WINDOW_COORDINATES;
-	    send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, BUTTON_LEFT, resulted_status, 1023, current_wm );
+	    send_event( 0, EVT_MOUSEBUTTONDOWN, g_mod, x, y, MOUSE_BUTTON_LEFT, 0, 1024, 0, current_wm );
 	    break;
 	case WM_LBUTTONUP:
 	    GET_WINDOW_COORDINATES;
-	    send_event( 0, EVT_MOUSEBUTTONUP, 0, x, y, BUTTON_LEFT, resulted_status, 1023, current_wm );
+	    send_event( 0, EVT_MOUSEBUTTONUP, g_mod, x, y, MOUSE_BUTTON_LEFT, 0, 1024, 0, current_wm );
 	    break;
 	case WM_MBUTTONDOWN:
 	    GET_WINDOW_COORDINATES;
-	    send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, BUTTON_MIDDLE, resulted_status, 1023, current_wm );
+	    send_event( 0, EVT_MOUSEBUTTONDOWN, g_mod, x, y, MOUSE_BUTTON_MIDDLE, 0, 1024, 0, current_wm );
 	    break;
 	case WM_MBUTTONUP:
 	    GET_WINDOW_COORDINATES;
-	    send_event( 0, EVT_MOUSEBUTTONUP, 0, x, y, BUTTON_MIDDLE, resulted_status, 1023, current_wm );
+	    send_event( 0, EVT_MOUSEBUTTONUP, g_mod, x, y, MOUSE_BUTTON_MIDDLE, 0, 1024, 0, current_wm );
 	    break;
 	case WM_RBUTTONDOWN:
 	    GET_WINDOW_COORDINATES;
-	    send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, BUTTON_RIGHT, resulted_status, 1023, current_wm );
+	    send_event( 0, EVT_MOUSEBUTTONDOWN, g_mod, x, y, MOUSE_BUTTON_RIGHT, 0, 1024, 0, current_wm );
 	    break;
 	case WM_RBUTTONUP:
 	    GET_WINDOW_COORDINATES;
-	    send_event( 0, EVT_MOUSEBUTTONUP, 0, x, y, BUTTON_RIGHT, resulted_status, 1023, current_wm );
+	    send_event( 0, EVT_MOUSEBUTTONUP, g_mod, x, y, MOUSE_BUTTON_RIGHT, 0, 1024, 0, current_wm );
 	    break;
 	case WM_MOUSEMOVE:
 	    GET_WINDOW_COORDINATES;
-	    switch(wParam & ~(MK_SHIFT+MK_CONTROL)) {
-		case MK_LBUTTON:
-		    send_event( 0, EVT_MOUSEMOVE, 0, x, y, BUTTON_LEFT, resulted_status, 1023, current_wm );
-		    break;
-		case MK_MBUTTON:
-		    send_event( 0, EVT_MOUSEMOVE, 0, x, y, BUTTON_MIDDLE, resulted_status, 1023, current_wm );
-		    break;
-		case MK_RBUTTON:
-		    send_event( 0, EVT_MOUSEMOVE, 0, x, y, BUTTON_RIGHT, resulted_status, 1023, current_wm );
-		    break;
-	    }
+	    key = 0;
+            if( wParam & MK_LBUTTON ) key |= MOUSE_BUTTON_LEFT;
+            if( wParam & MK_MBUTTON ) key |= MOUSE_BUTTON_MIDDLE;
+            if( wParam & MK_RBUTTON ) key |= MOUSE_BUTTON_RIGHT;
+            send_event( 0, EVT_MOUSEMOVE, g_mod, x, y, key, 0, 1024, 0, current_wm );
 	    break;
 	case WM_KEYDOWN:
-	    if( (int)wParam == VK_SHIFT )
-		    shift_status = KEY_SHIFT;
-	    if( (int)wParam == VK_CONTROL )
-		    ctrl_status = KEY_CTRL;
-	    //if( (int)wParam == VK_ALT )
-	    //	shift_status = KEY_ALT;
-	    resulted_status = shift_status | ctrl_status | alt_status;
-	    resulted_key = current_wm->buttons_table[ (int)wParam & 255 ];
-	    /*
-	    unsigned short tbuf[ 32 ];
-	    swprintf( tbuf, c2w( "KEY: %x" ), (int)wParam ); 
-	    RECT rr;
-	    rr.top = 0;
-	    rr.left = 0;
-	    rr.right = 128;
-	    rr.bottom = 32;
-	    DrawText( hDC, tbuf, 16, &rr, 0 );
-	    */
-	    if( resulted_key ) 
+	    if( wParam == VK_SHIFT )
+		g_mod |= EVT_FLAG_SHIFT;
+	    if( wParam == VK_CONTROL )
+		g_mod |= EVT_FLAG_CTRL;
+	    key = win_key_to_sundog_key( wParam );
+	    if( key ) 
 	    {
-	        resulted_key |= resulted_status;
-	        send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, resulted_key, 1023, current_wm );
+		send_event( 0, EVT_BUTTONDOWN, g_mod, 0, 0, key, ( lParam >> 16 ) & 511, 1024, 0, current_wm );
 	    }
 	    break;
 	case WM_KEYUP:
-	    if( (int)wParam == VK_SHIFT )
-		    shift_status = 0;
-	    if( (int)wParam == VK_CONTROL )
-		    ctrl_status = 0;
-	    //if( (int)wParam == VK_ALT )
-	    //	shift_status = 0;
-	    resulted_status = shift_status | ctrl_status | alt_status;
-	    resulted_key = current_wm->buttons_table[ (int)wParam & 255 ];
-	    /*
-	    swprintf( tbuf, c2w( "KEY: %x" ), (int)wParam ); 
-	    rr.top = 0;
-	    rr.left = 0;
-	    rr.right = 128;
-	    rr.bottom = 32;
-	    DrawText( hDC, tbuf, 16, &rr, 0 );
-	    */
-	    if( resulted_key ) 
+	    if( wParam == VK_SHIFT )
+		g_mod &= ~EVT_FLAG_SHIFT;
+	    if( wParam == VK_CONTROL )
+		g_mod &= ~EVT_FLAG_CTRL;
+	    key = win_key_to_sundog_key( wParam );
+	    if( key ) 
 	    {
-	        resulted_key |= resulted_status;
-	        send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, resulted_key, 1023, current_wm );
+		send_event( 0, EVT_BUTTONUP, g_mod, 0, 0, key, ( lParam >> 16 ) & 511, 1024, 0, current_wm );
 	    }
 	    break;
 	default:
@@ -446,8 +482,11 @@ WndProc(
     return 0;
 }
 
-int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow)
+int Win32CreateWindow( HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow )
 {
+    UTF16_CHAR windowName_utf16[ 256 ];
+    utf8_to_utf16( windowName_utf16, 256, windowName );
+
     /* register window class */
     wndClass.style = CS_HREDRAW | CS_VREDRAW;
     wndClass.lpfnWndProc = WndProc;
@@ -455,11 +494,11 @@ int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lps
     wndClass.cbWndExtra = 0;
     wndClass.hInstance = hCurrentInst;
     wndClass.hIcon = LoadIcon( hCurrentInst, MAKEINTRESOURCE(IDI_ICON1) );
-    wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wndClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    wndClass.hCursor = LoadCursor( NULL, IDC_ARROW );
+    wndClass.hbrBackground = (HBRUSH)GetStockObject( BLACK_BRUSH );
     wndClass.lpszMenuName = NULL;
     wndClass.lpszClassName = className;
-    RegisterClass(&wndClass);
+    RegisterClass( &wndClass );
 
     /* create window */
     RECT Rect;
@@ -472,7 +511,7 @@ int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lps
     if( win_flags & WIN_INIT_FLAG_SCALABLE )
     {
 	hWnd = CreateWindow(
-	    className, c2w( windowName ),
+	    className, windowName_utf16,
 	    WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
 	    ( GetSystemMetrics(SM_CXSCREEN) - (Rect.right - Rect.left) ) / 2, 
 	    ( GetSystemMetrics(SM_CYSCREEN) - (Rect.bottom - Rect.top) ) / 2, 
@@ -483,7 +522,7 @@ int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lps
     else
     {
 	hWnd = CreateWindow(
-	    className, c2w( windowName ),
+	    className, windowName_utf16,
 	    WS_CAPTION | WS_SYSMENU | WS_THICKFRAME,
 	    ( GetSystemMetrics(SM_CXSCREEN) - (Rect.right - Rect.left) ) / 2, 
 	    ( GetSystemMetrics(SM_CYSCREEN) - (Rect.bottom - Rect.top) ) / 2, 
@@ -494,10 +533,10 @@ int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lps
 #endif //GDI
 #ifdef DIRECTDRAW
     hWnd = CreateWindow(
-	className, c2w( windowName ),
+	className, (const WCHAR*)windowName_utf16,
 	WS_VISIBLE,
 	0, 0,
-	GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
+	GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ),
 	NULL, NULL, hCurrentInst, NULL
     );
 #endif //DIRECTDRAW
@@ -526,96 +565,7 @@ int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lps
 #define VK_APP_LAUNCH14      0xCE
 #define VK_APP_LAUNCH15      0xCF
 
-void CreateButtonsTable( window_manager *wm )
-{
-    wm->buttons_table[ 0x30 ] = 0x30; // 0 1 2 3 ...
-    wm->buttons_table[ 0x31 ] = 0x31;
-    wm->buttons_table[ 0x32 ] = 0x32;
-    wm->buttons_table[ 0x33 ] = 0x33;
-    wm->buttons_table[ 0x34 ] = 0x34;
-    wm->buttons_table[ 0x35 ] = 0x35;
-    wm->buttons_table[ 0x36 ] = 0x36;
-    wm->buttons_table[ 0x37 ] = 0x37;
-    wm->buttons_table[ 0x38 ] = 0x38;
-    wm->buttons_table[ 0x39 ] = 0x39;
-
-    wm->buttons_table[ 0x41 ] = 0x61; // a b c d e ...
-    wm->buttons_table[ 0x42 ] = 0x62;
-    wm->buttons_table[ 0x43 ] = 0x63;
-    wm->buttons_table[ 0x44 ] = 0x64;
-    wm->buttons_table[ 0x45 ] = 0x65;
-    wm->buttons_table[ 0x46 ] = 0x66;
-    wm->buttons_table[ 0x47 ] = 0x67;
-    wm->buttons_table[ 0x48 ] = 0x68;
-    wm->buttons_table[ 0x49 ] = 0x69;
-    wm->buttons_table[ 0x4A ] = 0x6A;
-    wm->buttons_table[ 0x4B ] = 0x6B;
-    wm->buttons_table[ 0x4C ] = 0x6C;
-    wm->buttons_table[ 0x4D ] = 0x6D;
-    wm->buttons_table[ 0x4E ] = 0x6E;
-    wm->buttons_table[ 0x4F ] = 0x6F;
-    wm->buttons_table[ 0x50 ] = 0x70;
-    wm->buttons_table[ 0x51 ] = 0x71;
-    wm->buttons_table[ 0x52 ] = 0x72;
-    wm->buttons_table[ 0x53 ] = 0x73;
-    wm->buttons_table[ 0x54 ] = 0x74;
-    wm->buttons_table[ 0x55 ] = 0x75;
-    wm->buttons_table[ 0x56 ] = 0x76;
-    wm->buttons_table[ 0x57 ] = 0x77;
-    wm->buttons_table[ 0x58 ] = 0x78;
-    wm->buttons_table[ 0x59 ] = 0x79;
-    wm->buttons_table[ 0x5A ] = 0x7A;
-
-    wm->buttons_table[ VK_F1 ] = KEY_F1;
-    wm->buttons_table[ VK_F2 ] = KEY_F2;
-    wm->buttons_table[ VK_F3 ] = KEY_F3;
-    wm->buttons_table[ VK_F4 ] = KEY_F4;
-    wm->buttons_table[ VK_F5 ] = KEY_F5;
-    wm->buttons_table[ VK_F6 ] = KEY_F6;
-    wm->buttons_table[ VK_F7 ] = KEY_F7;
-    wm->buttons_table[ VK_F8 ] = KEY_F8;
-
-    wm->buttons_table[ VK_ESCAPE ] = KEY_ESCAPE;
-    wm->buttons_table[ VK_SPACE ] = KEY_SPACE;
-    wm->buttons_table[ VK_RETURN ] = KEY_ENTER;
-    wm->buttons_table[ VK_BACK ] = KEY_BACKSPACE;
-    wm->buttons_table[ VK_TAB ] = KEY_TAB;
-    wm->buttons_table[ VK_CAPITAL ] = KEY_CAPS;
-    wm->buttons_table[ VK_SHIFT ] = 0;
-    wm->buttons_table[ VK_CONTROL ] = 0;
-    //wm->buttons_table[ VK_ALT ] = 0;
-    
-    wm->buttons_table[ VK_APP_LAUNCH1 ] = 0;//KEY_ESCAPE;
-    wm->buttons_table[ VK_APP_LAUNCH2 ] = 0;//KEY_ESCAPE;
-    wm->buttons_table[ VK_APP_LAUNCH3 ] = 0;//KEY_ESCAPE;
-    wm->buttons_table[ VK_APP_LAUNCH4 ] = 0;//KEY_ESCAPE;
-    
-    wm->buttons_table[ VK_UP ] = KEY_UP;
-    wm->buttons_table[ VK_DOWN ] = KEY_DOWN;
-    wm->buttons_table[ VK_LEFT ] = KEY_LEFT;
-    wm->buttons_table[ VK_RIGHT ] = KEY_RIGHT;
-
-    wm->buttons_table[ VK_INSERT ] = KEY_INSERT;
-    wm->buttons_table[ VK_DELETE ] = KEY_DELETE;
-    wm->buttons_table[ VK_HOME ] = KEY_HOME;
-    wm->buttons_table[ VK_END ] = KEY_END;
-    wm->buttons_table[ 33 ] = KEY_PAGEUP;
-    wm->buttons_table[ 34 ] = KEY_PAGEDOWN;
-
-    wm->buttons_table[ 189 ] = '-'; //  -
-    wm->buttons_table[ 187 ] = '='; //  =
-    wm->buttons_table[ 219 ] = '['; //  [
-    wm->buttons_table[ 221 ] = ']'; //  ]
-    wm->buttons_table[ 186 ] = ';'; //  ;
-    wm->buttons_table[ 222 ] = 0x27; //  '
-    wm->buttons_table[ 188 ] = ','; //  ,
-    wm->buttons_table[ 190 ] = '.'; //  .
-    wm->buttons_table[ 191 ] = '/'; //  /
-    wm->buttons_table[ 220 ] = 0x5C; //  |
-    wm->buttons_table[ 192 ] = '`'; //  `
-}
-
-void device_screen_unlock( window_manager *wm )
+void device_screen_unlock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 1 && wm->gx_suspended == 0 )
     {
@@ -639,7 +589,7 @@ void device_screen_unlock( window_manager *wm )
 	wm->screen_is_active = 0;
 }
 
-void device_screen_lock( window_manager *wm )
+void device_screen_lock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 0 && wm->gx_suspended == 0 )
     {
@@ -698,8 +648,7 @@ void device_draw_bitmap(
     int dest_x, int dest_y, 
     int dest_xs, int dest_ys,
     int src_x, int src_y,
-    int src_xs, int src_ys,
-    COLOR *data,
+    sundog_image *img,
     window_manager *wm )
 {
     if( wm->hdc == 0 ) return;
@@ -738,6 +687,9 @@ void device_draw_bitmap(
 	}
 #endif
     }
+    int src_xs = img->xsize;
+    int src_ys = img->ysize;
+    COLORPTR data = (COLORPTR)img->data;
     bi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bi->bmiHeader.biWidth = src_xs;
     bi->bmiHeader.biHeight = -src_ys;
@@ -753,18 +705,19 @@ void device_draw_bitmap(
     {
 	new_src_y = src_y;
     }
-    SetDIBitsToDevice(  wm->hdc,
-			dest_x,		// Destination top left hand corner X Position
-			dest_y,		// Destination top left hand corner Y Position
-			dest_xs,	// Destinations Width
-			dest_ys,	// Desitnations height
-			src_x,          // Source low left hand corner's X Position
-			new_src_y,      // Source low left hand corner's Y Position
-			0,
-			src_ys,
-			data,		// Source's data
-			(BITMAPINFO*)wm->gdi_bitmap_info, // Bitmap Info
-			DIB_RGB_COLORS );
+    SetDIBitsToDevice(  
+	wm->hdc,
+	dest_x, // Destination top left hand corner X Position
+	dest_y,	// Destination top left hand corner Y Position
+	dest_xs, // Destinations Width
+	dest_ys, // Desitnations height
+	src_x, // Source low left hand corner's X Position
+	new_src_y, // Source low left hand corner's Y Position
+	0,
+	src_ys,
+	data, // Source's data
+	(BITMAPINFO*)wm->gdi_bitmap_info, // Bitmap Info
+	DIB_RGB_COLORS );
 }
 
 #endif

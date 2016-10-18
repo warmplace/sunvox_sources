@@ -1,10 +1,11 @@
 /*
-    utils.cpp. Various functions: string list; random generator
+    utils.cpp. Various functions: string list; random generator; ...
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #include "../../core/core.h"
+#include "../../core/debug.h"
 #include "../../memory/memory.h"
 #include "../../filesystem/v3nus_fs.h"
 #include "../utils.h"
@@ -13,7 +14,7 @@
 
 void list_init( list_data *data )
 {
-    data->items = (char*)mem_new( HEAP_STORAGE, MAX_SIZE, "list items", 0 );
+    data->items = (UTF8_CHAR*)mem_new( HEAP_STORAGE, MAX_SIZE, "list items", 0 );
     data->items_ptr = (long*)mem_new( HEAP_STORAGE, MAX_ITEMS * 4, "list items ptrs", 0 );
     list_clear( data );
     list_reset_selection( data );
@@ -44,7 +45,7 @@ void list_reset_selection( list_data *data )
     data->selected_item = -1;
 }
 
-void list_add_item( char *item, char attr, list_data *data )
+void list_add_item( const UTF8_CHAR *item, char attr, list_data *data )
 {
     long ptr, p;
 
@@ -147,7 +148,7 @@ void list_move_item_down( long item_num, list_data *data )
     }
 }
 
-char* list_get_item( long item_num, list_data *data )
+UTF8_CHAR* list_get_item( long item_num, list_data *data )
 {
     if( item_num >= data->items_num ) return 0;
     if( item_num >= 0 )
@@ -180,10 +181,10 @@ void list_set_selected_num( long sel, list_data *data )
 //0 - item1 <= item2
 long list_compare_items( long item1, long item2, list_data *data )
 {
-    char *i1 = data->items + data->items_ptr[ item1 ];
-    char *i2 = data->items + data->items_ptr[ item2 ];
-    char a1 = i1[ 0 ] & 127;
-    char a2 = i2[ 0 ] & 127;
+    UTF8_CHAR *i1 = data->items + data->items_ptr[ item1 ];
+    UTF8_CHAR *i2 = data->items + data->items_ptr[ item2 ];
+    UTF8_CHAR a1 = i1[ 0 ] & 127;
+    UTF8_CHAR a2 = i2[ 0 ] & 127;
     i1++;
     i2++;
     
@@ -242,7 +243,7 @@ void set_seed( unsigned long seed )
 unsigned long pseudo_random( void )
 {
     rand_next = rand_next * 1103515245 + 12345;
-    return ((unsigned int)(rand_next/65536)%32768);
+    return ( (unsigned int)( rand_next / 65536 ) % 32768 );
 }
 
 //MUTEXES:
@@ -298,7 +299,7 @@ int sundog_mutex_lock( sundog_mutex *mutex )
     if( *mutex->main_sound_callback_working )
     {
 	//We are in the main sound callback.
-	if( mutex->mutex_cnt == 0 ) 
+	if( mutex->mutex_cnt == 0 )
 	{
 	    mutex->mutex_cnt = 1;
 	}
@@ -342,10 +343,10 @@ void profile_new( profile_data *p )
     if( p == 0 ) p = &g_profile;
 
     p->num = 4;
-    p->keys = (char**)MEM_NEW( HEAP_DYNAMIC, sizeof( char* ) * p->num );
-    p->values = (char**)MEM_NEW( HEAP_DYNAMIC, sizeof( char* ) * p->num );
-    mem_set( p->keys, sizeof( char* ) * p->num, 0 );
-    mem_set( p->values, sizeof( char* ) * p->num, 0 );
+    p->keys = (UTF8_CHAR**)MEM_NEW( HEAP_DYNAMIC, sizeof( UTF8_CHAR* ) * p->num );
+    p->values = (UTF8_CHAR**)MEM_NEW( HEAP_DYNAMIC, sizeof( UTF8_CHAR* ) * p->num );
+    mem_set( p->keys, sizeof( UTF8_CHAR* ) * p->num, 0 );
+    mem_set( p->values, sizeof( UTF8_CHAR* ) * p->num, 0 );
 }
 
 void profile_resize( int new_num, profile_data *p )
@@ -354,15 +355,17 @@ void profile_resize( int new_num, profile_data *p )
 
     if( new_num > p->num )
     {
-	p->keys = (char**)mem_resize( p->keys, sizeof( char* ) * new_num );
-	p->values = (char**)mem_resize( p->values, sizeof( char* ) * new_num );
-	mem_set( p->keys + sizeof( char* ) * p->num, sizeof( char* ) * ( new_num - p->num ), 0 );
-	mem_set( p->values + sizeof( char* ) * p->num, sizeof( char* ) * ( new_num - p->num ), 0 );
+	p->keys = (UTF8_CHAR**)mem_resize( p->keys, sizeof( UTF8_CHAR* ) * new_num );
+	p->values = (UTF8_CHAR**)mem_resize( p->values, sizeof( UTF8_CHAR* ) * new_num );
+	char *ptr = (char*)p->keys;
+	mem_set( ptr + sizeof( UTF8_CHAR* ) * p->num, sizeof( UTF8_CHAR* ) * ( new_num - p->num ), 0 );
+	ptr = (char*)p->values;
+	mem_set( ptr + sizeof( UTF8_CHAR* ) * p->num, sizeof( UTF8_CHAR* ) * ( new_num - p->num ), 0 );
 	p->num = new_num;
     }
 }
 
-int profile_add_value( char *key, char *value, profile_data *p )
+int profile_add_value( const UTF8_CHAR *key, const UTF8_CHAR *value, profile_data *p )
 {
     int rv = -1;
 
@@ -379,22 +382,21 @@ int profile_add_value( char *key, char *value, profile_data *p )
 	    //Free item not found.
 	    profile_resize( p->num + 4, p );
 	}
-	if( p->values[ rv ] ) mem_free( p->values[ rv ] );
-	p->values[ rv ] = 0;
 	if( value )
 	{
-	    p->values[ rv ] = (char*)MEM_NEW( HEAP_DYNAMIC, mem_strlen( value ) + 1 );
+	    p->values[ rv ] = (UTF8_CHAR*)MEM_NEW( HEAP_DYNAMIC, mem_strlen( value ) + 1 );
 	    p->values[ rv ][ 0 ] = 0;
 	    mem_strcat( p->values[ rv ], value );
 	}
-	p->keys[ rv ] = (char*)MEM_NEW( HEAP_DYNAMIC, mem_strlen( key ) + 1 );
+	p->keys[ rv ] = (UTF8_CHAR*)MEM_NEW( HEAP_DYNAMIC, mem_strlen( key ) + 1 );
 	p->keys[ rv ][ 0 ] = 0;
 	mem_strcat( p->keys[ rv ], key );
     }
+
     return rv;
 }
 
-int profile_get_int_value( char *key, profile_data *p )
+int profile_get_int_value( const UTF8_CHAR *key, profile_data *p )
 {
     int rv = -1;
 
@@ -417,9 +419,9 @@ int profile_get_int_value( char *key, profile_data *p )
     return rv;
 }
 
-char* profile_get_str_value( char *key, profile_data *p )
+UTF8_CHAR* profile_get_str_value( const UTF8_CHAR *key, profile_data *p )
 {
-    char* rv = 0;
+    UTF8_CHAR* rv = 0;
 
     if( p == 0 ) p = &g_profile;
 
@@ -461,10 +463,10 @@ void profile_close( profile_data *p )
 
 #define PROFILE_KEY_CHAR( cc ) ( !( cc == ' ' || cc == 0x09 || cc == 0x0A || cc == 0x0D || cc == -1 ) )
 
-void profile_load( char *filename, profile_data *p )
+void profile_load( const UTF8_CHAR *filename, profile_data *p )
 {
-    char str1[ 129 ];
-    char str2[ 129 ];
+    UTF8_CHAR str1[ 129 ];
+    UTF8_CHAR str2[ 129 ];
     str1[ 128 ] = 0;
     str2[ 128 ] = 0;
     int i;
@@ -484,7 +486,7 @@ void profile_load( char *filename, profile_data *p )
 	{
 	    c = v3_getc( f );
 	    if( c == -1 ) break; //EOF
-	    if( c == 0xD || c == 0xA ) 
+	    if( c == 0xD || c == 0xA )
 	    {
 		comment_mode = 0; //Reset comment mode at the end of line
 		key_mode = 0;
@@ -539,48 +541,68 @@ void profile_load( char *filename, profile_data *p )
 
 //WORKING WITH A STRINGS:
 
-void int_to_string( int value, char *str )
+void int_to_string( int value, UTF8_CHAR *str )
 {
-    int n, p = 0, f = 0;
+    int n;
+    UTF8_CHAR ts[ 10 ];
+    UTF8_CHAR ts_ptr = 0;
     
     if( value < 0 )
     {
-    	str[ p++ ] = '-';
+    	*str = '-';
+	*str++;
 	value = -value;
     }
-    
-    n = value / 100000000; if( n || f ) { str[p++] = (char)n+48; value -= n * 100000000; f = 1; }
-    n = value / 10000000; if( n || f ) { str[p++] = (char)n+48; value -= n * 10000000; f = 1; }
-    n = value / 1000000; if( n || f ) { str[p++] = (char)n+48; value -= n * 1000000; f = 1; }
-    n = value / 100000; if( n || f ) { str[p++] = (char)n+48; value -= n * 100000; f = 1; }
-    n = value / 10000; if( n || f ) { str[p++] = (char)n+48; value -= n * 10000; f = 1; }
-    n = value / 1000; if( n || f ) { str[p++] = (char)n+48; value -= n * 1000; f = 1; }
-    n = value / 100; if( n || f ) { str[p++] = (char)n+48; value -= n * 100; f = 1; }
-    n = value / 10; if( n || f ) { str[p++] = (char)n+48; value -= n * 10; f = 1; }
-    str[ p++ ] = (char)value + 48;
-    str[ p ] = 0;
-}
 
-void hex_int_to_string( int value, char *str )
-{
-    long n, p = 0, f = 0;
-    
-    if( value < 0 )
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value % 10; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; value /= 10; if( !value ) goto int_finish;
+    n = value; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48;
+int_finish:
+
+    while( ts_ptr )
     {
-    	str[ p++ ] = '-';
-	value = -value;
+	ts_ptr--;
+	*str = ts[ ts_ptr ];
+	*str++;
     }
     
-    n = value >> 20; if( n || f ) { str[p] = (char)n+48; if(n>9) str[p]+=7; p++; value -= n << 20; f = 1; }
-    n = value >> 16; if( n || f ) { str[p] = (char)n+48; if(n>9) str[p]+=7; p++; value -= n << 16; f = 1; }
-    n = value >> 12; if( n || f ) { str[p] = (char)n+48; if(n>9) str[p]+=7; p++; value -= n << 12; f = 1; }
-    n = value >> 8; if( n || f ) { str[p] = (char)n+48; if(n>9) str[p]+=7; p++; value -= n << 8; f = 1; }
-    n = value >> 4; if( n || f ) { str[p] = (char)n+48; if(n>9) str[p]+=7; p++; value -= n << 4; f = 1; }
-    str[p] = (char)value+48; if(value>9) str[p]+=7; p++; 
-    str[p] = 0;	
+    *str = 0;
 }
 
-int string_to_int( char *str )
+void hex_int_to_string( int value, UTF8_CHAR *str )
+{
+    int n;
+    UTF8_CHAR ts[ 8 ];
+    UTF8_CHAR ts_ptr = 0;
+
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value & 3; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7; value /= 16; if( !value ) goto hex_int_finish;
+    n = value; ts[ ts_ptr++ ] = (UTF8_CHAR) n + 48; if( n > 9 ) ts[ ts_ptr ] += 7;
+hex_int_finish:
+
+    while( ts_ptr )
+    {
+	ts_ptr--;
+	*str = ts[ ts_ptr ];
+	*str++;
+    }
+    
+    *str = 0;
+}
+
+int string_to_int( const UTF8_CHAR *str )
 {
     int res = 0;
     int d = 1;
@@ -600,7 +622,7 @@ int string_to_int( char *str )
     return res * minus;
 }
 
-int hex_string_to_int( char *str )
+int hex_string_to_int( const UTF8_CHAR *str )
 {
     int res = 0;
     int d = 1;
@@ -630,57 +652,405 @@ char int_to_hchar( int value )
 	else return ( value - 10 ) + 'A';
 }
 
-#ifdef WINCE
-unsigned short g_temp_wstr[ 1024 * 4 ];
-unsigned char g_temp_cstr[ 1024 * 4 ];
-int g_str_num1 = 0;
-int g_str_num2 = 0;
-WCHAR* c2w( char *s )
+#define TEMP_STR_SIZE_DWORDS 256
+
+int g_temp_str[ 256 * 4 ];
+int g_str_num = 0;
+
+UTF16_CHAR *utf8_to_utf16( UTF16_CHAR *dest, int dest_chars, const UTF8_CHAR *s )
 {
-    unsigned char *ss = (unsigned char*)s;
-    unsigned short *wstr = &g_temp_wstr[ 1024 * g_str_num1 ];
-    int p1 = 0;
-    int p2 = 0;
-    while( ss[ p2 ] != 0 )
+    unsigned char *src = (unsigned char*)s;
+    if( dest == 0 )
     {
-	wstr[ p1 ] = ss[ p2 ];	
-	if( wstr[ p1 ] > 127 )
-	{
-	    wstr[ p1 ] -= 128;
-	    wstr[ p1 ] <<= 8;
-	    p2++;
-	    wstr[ p1 ] |= (unsigned short)( ss[ p2 ] );
-	}
-	p1++;
-	p2++;
-	if( p1 > 1020 ) break;
-	if( p2 > 1020 ) break;
+	char *t = (char*)&g_temp_str[ TEMP_STR_SIZE_DWORDS * g_str_num ];
+	dest = (UTF16_CHAR*)t;
+	dest_chars = TEMP_STR_SIZE_DWORDS * 2;
     }
-    wstr[ p1 ] = 0;
-    g_str_num1++; g_str_num1 &= 3;
-    return (WCHAR*)wstr;
+    UTF16_CHAR *dest_begin = dest;
+    UTF16_CHAR *dest_end = dest + dest_chars;
+    while( *src != 0 )
+    {
+	if( *src < 128 ) 
+	{
+	    *dest = (UTF16_CHAR)(*src);
+	    src++;
+	    dest++;
+	}
+	else
+	{
+	    if( *src & 64 )
+	    {
+		int res;
+		if( ( *src & 32 ) == 0 )
+		{
+		    //Two bytes:
+		    res = ( *src & 31 ) << 6;
+		    src++;
+		    res |= ( *src & 63 );
+		    src++;
+		    *dest = (UTF16_CHAR)res;
+		    dest++;
+		}
+		else if( ( *src & 16 ) == 0 )
+		{
+		    //Three bytes:
+		    res = ( *src & 15 ) << 12;
+		    src++;
+		    res |= ( *src & 63 ) << 6;
+		    src++;
+		    res |= ( *src & 63 );
+		    src++;
+		    *dest = (UTF16_CHAR)res;
+		    dest++;
+		}
+		else if( ( *src & 8 ) == 0 )
+		{
+		    //Four bytes:
+		    res = ( *src & 7 ) << 18;
+		    src++;
+		    res |= ( *src & 63 ) << 12;
+		    src++;
+		    res |= ( *src & 63 ) << 6;
+		    src++;
+		    res |= ( *src & 63 );
+		    src++;
+		    *dest = 0xD800 | (UTF16_CHAR)( res & 1023 );
+		    dest++;
+		    if( dest >= dest_end )
+		    {
+			dest--;
+			break;
+		    }
+		    *dest = 0xDC00 | (UTF16_CHAR)( ( res >> 10 ) & 1023 );
+		    dest++;
+		}
+		else
+		{
+		    //Unknown byte:
+		    src++;
+		    continue;
+		}
+	    }
+	    else
+	    {
+		//Unknown byte:
+		src++;
+		continue;
+	    }
+	}
+	if( dest >= dest_end )
+	{
+	    dest--;
+	    break;
+	}
+    }
+    *dest = 0;
+    g_str_num++; g_str_num &= 3;
+    return dest_begin;
 }
-char* w2c( WCHAR *s )
+
+UTF32_CHAR *utf8_to_utf32( UTF32_CHAR *dest, int dest_chars, const UTF8_CHAR *s )
 {
-    unsigned char *cstr = &g_temp_cstr[ 1024 * g_str_num2 ];
-    int p1 = 0;
-    int p2 = 0;
-    while( s[ p2 ] != 0 )
+    unsigned char *src = (unsigned char*)s;
+    if( dest == 0 )
     {
-	cstr[ p1 ] = (unsigned char)s[ p2 ];
-	if( s[ p2 ] > 127 )
-	{
-	    cstr[ p1 ] = (unsigned char)( 128 + ( s[ p2 ] >> 8 ) );
-	    p1++;
-	    cstr[ p1 ] = (unsigned char)( s[ p2 ] );
-	}
-	p1++;
-	p2++;
-	if( p1 > 1020 ) break;
-	if( p2 > 1020 ) break;
+	char *t = (char*)&g_temp_str[ TEMP_STR_SIZE_DWORDS * g_str_num ];
+	dest = (UTF32_CHAR*)t;
+	dest_chars = TEMP_STR_SIZE_DWORDS;
     }
-    cstr[ p1 ] = 0;
-    g_str_num2++; g_str_num2 &= 3;
-    return (char*)cstr;
+    UTF32_CHAR *dest_begin = dest;
+    UTF32_CHAR *dest_end = dest + dest_chars;
+    while( *src != 0 )
+    {
+	if( *src < 128 ) 
+	{
+	    *dest = *src;
+	    src++;
+	    dest++;
+	}
+	else
+	{
+	    if( *src & 64 )
+	    {
+		int res;
+		if( ( *src & 32 ) == 0 )
+		{
+		    //Two bytes:
+		    res = ( *src & 31 ) << 6;
+		    src++;
+		    res |= ( *src & 63 );
+		    src++;
+		    *dest = (UTF32_CHAR)res;
+		    dest++;
+		}
+		else if( ( *src & 16 ) == 0 )
+		{
+		    //Three bytes:
+		    res = ( *src & 15 ) << 12;
+		    src++;
+		    res |= ( *src & 63 ) << 6;
+		    src++;
+		    res |= ( *src & 63 );
+		    src++;
+		    *dest = (UTF32_CHAR)res;
+		    dest++;
+		}
+		else if( ( *src & 8 ) == 0 )
+		{
+		    //Four bytes:
+		    res = ( *src & 7 ) << 18;
+		    src++;
+		    res |= ( *src & 63 ) << 12;
+		    src++;
+		    res |= ( *src & 63 ) << 6;
+		    src++;
+		    res |= ( *src & 63 );
+		    src++;
+		    *dest = (UTF32_CHAR)res;
+		    dest++;
+		}
+		else
+		{
+		    //Unknown byte:
+		    src++;
+		    continue;
+		}
+	    }
+	    else
+	    {
+		//Unknown byte:
+		src++;
+		continue;
+	    }
+	}
+	if( dest >= dest_end )
+	{
+	    dest--;
+	    break;
+	}
+    }
+    *dest = 0;
+    g_str_num++; g_str_num &= 3;
+    return dest_begin;
 }
-#endif
+
+UTF8_CHAR *utf16_to_utf8( UTF8_CHAR *dst, int dest_chars, const UTF16_CHAR *src )
+{
+    unsigned char *dest = (unsigned char*)dst;
+    if( dest == 0 )
+    {
+	dest = (unsigned char*)&g_temp_str[ TEMP_STR_SIZE_DWORDS * g_str_num ];
+	dest_chars = TEMP_STR_SIZE_DWORDS * 4;
+    }
+    unsigned char *dest_begin = dest;
+    unsigned char *dest_end = dest + dest_chars;
+    while( *src != 0 )
+    {
+	int res;
+	if( ( *src & ~1023 ) != 0xD800 )
+	{
+	    res = *src;
+	    src++;
+	}
+	else
+	{
+	    res = *src & 1023;
+	    src++;
+	    res |= ( *src & 1023 ) << 10;
+	    src++;
+	}
+	if( res < 128 )
+	{
+	    *dest = (unsigned char)res;
+	    dest++;
+	}
+	else if( res < 0x800 )
+	{
+	    if( dest >= dest_end - 2 ) break;
+	    *dest = 0xC0 | ( ( res >> 6 ) & 31 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 0 ) & 63 );
+	    dest++;
+	}
+	else if( res < 0x10000 )
+	{
+	    if( dest >= dest_end - 3 ) break;
+	    *dest = 0xC0 | ( ( res >> 12 ) & 15 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 6 ) & 63 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 0 ) & 63 );
+	    dest++;
+	}
+	else
+	{
+	    if( dest >= dest_end - 4 ) break;
+	    *dest = 0xC0 | ( ( res >> 18 ) & 7 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 12 ) & 63 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 6 ) & 63 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 0 ) & 63 );
+	    dest++;
+	}
+	if( dest >= dest_end )
+	{
+	    dest--;
+	    break;
+	}
+    }
+    *dest = 0;
+    g_str_num++; g_str_num &= 3;
+    return (UTF8_CHAR*)dest_begin;
+}
+
+UTF8_CHAR *utf32_to_utf8( UTF8_CHAR *dst, int dest_chars, const UTF32_CHAR *src )
+{
+    unsigned char *dest = (unsigned char*)dst;
+    if( dest == 0 )
+    {
+	dest = (unsigned char*)&g_temp_str[ TEMP_STR_SIZE_DWORDS * g_str_num ];
+	dest_chars = TEMP_STR_SIZE_DWORDS * 4;
+    }
+    unsigned char *dest_begin = dest;
+    unsigned char *dest_end = dest + dest_chars;
+    while( *src != 0 )
+    {
+	int res = (int)*src;
+	src++;
+	if( res < 128 )
+	{
+	    *dest = (unsigned char)res;
+	    dest++;
+	}
+	else if( res < 0x800 )
+	{
+	    if( dest >= dest_end - 2 ) break;
+	    *dest = 0xC0 | ( ( res >> 6 ) & 31 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 0 ) & 63 );
+	    dest++;
+	}
+	else if( res < 0x10000 )
+	{
+	    if( dest >= dest_end - 3 ) break;
+	    *dest = 0xC0 | ( ( res >> 12 ) & 15 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 6 ) & 63 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 0 ) & 63 );
+	    dest++;
+	}
+	else
+	{
+	    if( dest >= dest_end - 4 ) break;
+	    *dest = 0xC0 | ( ( res >> 18 ) & 7 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 12 ) & 63 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 6 ) & 63 );
+	    dest++;
+	    *dest = 0x80 | ( ( res >> 0 ) & 63 );
+	    dest++;
+	}
+	if( dest >= dest_end )
+	{
+	    dest--;
+	    break;
+	}
+    }
+    *dest = 0;
+    g_str_num++; g_str_num &= 3;
+    return (UTF8_CHAR*)dest_begin;
+}
+
+int utf8_to_utf32_char( const UTF8_CHAR *str, UTF32_CHAR *res )
+{
+    *res = 0;
+    unsigned char *src = (unsigned char*)str;
+    while( *src != 0 )
+    {
+	if( *src < 128 ) 
+	{
+	    *res = (UTF32_CHAR)*src;
+	    return 1;
+	}
+	else
+	{
+	    if( *src & 64 )
+	    {
+		if( ( *src & 32 ) == 0 )
+		{
+		    //Two bytes:
+		    *res = ( *src & 31 ) << 6;
+		    src++;
+		    *res |= ( *src & 63 );
+		    return 2;
+		}
+		else if( ( *src & 16 ) == 0 )
+		{
+		    //Three bytes:
+		    *res = ( *src & 15 ) << 12;
+		    src++;
+		    *res |= ( *src & 63 ) << 6;
+		    src++;
+		    *res |= ( *src & 63 );
+		    return 3;
+		}
+		else if( ( *src & 8 ) == 0 )
+		{
+		    //Four bytes:
+		    *res = ( *src & 7 ) << 18;
+		    src++;
+		    *res |= ( *src & 63 ) << 12;
+		    src++;
+		    *res |= ( *src & 63 ) << 6;
+		    src++;
+		    *res |= ( *src & 63 );
+		    return 4;
+		}
+		else
+		{
+		    //Unknown byte:
+		    src++;
+		    continue;
+		}
+	    }
+	    else
+	    {
+		//Unknown byte:
+		src++;
+		continue;
+	    }
+	}
+    }
+    return 1;
+}
+
+void utf8_unix_slash_to_windows( UTF8_CHAR *str )
+{
+    while( *str != 0 )
+    {
+	if( *str == 0x2F ) *str = 0x5C;	    
+	str++;
+    }
+}
+
+void utf16_unix_slash_to_windows( UTF16_CHAR *str )
+{
+    while( *str != 0 )
+    {
+	if( *str == 0x2F ) *str = 0x5C;	    
+	str++;
+    }
+}
+
+void utf32_unix_slash_to_windows( UTF32_CHAR *str )
+{
+    while( *str != 0 )
+    {
+	if( *str == 0x2F ) *str = 0x5C;	    
+	str++;
+    }
+}

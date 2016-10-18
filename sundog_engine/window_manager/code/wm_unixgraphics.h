@@ -1,7 +1,7 @@
 /*
-    wm_unixgfx.h. Platform-dependent module : Unix OpenGL + XWindows
+    wm_unixgraphics.h. Platform-dependent module : Unix OpenGL + XWindows
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #ifndef __WINMANAGER_UNIX_GL__
@@ -31,14 +31,15 @@ int		xscreen;
 int		depth = 0;
 int 		auto_repeat = 0;
 
+int g_mod = 0;
+
 #ifdef OPENGL
+    GLXContext cx;
+    static int snglBuf[] = { GLX_RGBA, GLX_DEPTH_SIZE, 16, GLX_STENCIL_SIZE, 8, None };
+    static int dblBuf[] = { GLX_RGBA, GLX_DEPTH_SIZE, 16, GLX_DOUBLEBUFFER, GLX_STENCIL_SIZE, 8, None };
+    XVisualInfo *vi;
     #include "wm_opengl.h"
-    GLXContext      cx;
-    static int      snglBuf[] = {GLX_RGBA, GLX_DEPTH_SIZE, 16, None};
-    static int      dblBuf[] = {GLX_RGBA, GLX_DEPTH_SIZE, 16, GLX_DOUBLEBUFFER, None};
-    XVisualInfo    *vi;
-#endif
-#ifdef X11
+#else
     Visual *vi;
 #endif
 
@@ -57,7 +58,7 @@ XImage *last_img = 0;
 
 int g_flags = 0;
 
-int device_start( char *windowname, int xsize, int ysize, int flags, window_manager *wm )
+int device_start( const UTF8_CHAR *windowname, int xsize, int ysize, int flags, window_manager *wm )
 {
     int retval = 0;
 
@@ -66,45 +67,66 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
     g_flags = flags;
 
     current_wm = wm;
-#ifdef OPENGL
+
+#if defined(OPENGL) && defined(FRAMEBUFFER)
     xsize = 512;
     ysize = 512;
 #endif
-#ifdef X11
-    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
-    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
+#if defined(OPENGL) && !defined(FRAMEBUFFER)
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) 
+	xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) 
+	ysize = profile_get_int_value( KEY_SCREENY, 0 );
 #endif
+#ifdef X11
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) 
+	xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) 
+	ysize = profile_get_int_value( KEY_SCREENY, 0 );
+#endif
+
     wm->screen_xsize = xsize;
     wm->screen_ysize = ysize;
+#ifdef OPENGL
+    wm->real_window_width = xsize;
+    wm->real_window_height = ysize;
+#endif
 
     /*** open a connection to the X server ***/
-    char *name;
-    if( (name = getenv( "DISPLAY" )) == NULL )
+    const char *name;
+    if( ( name = getenv( "DISPLAY" ) ) == NULL )
 	name = ":0";
     wm->dpy = XOpenDisplay( name );
     if( wm->dpy == NULL ) 
     {
-    	prints( "could not open display\n" );
+    	dprint( "could not open display\n" );
     }
 #ifndef OPENGL
     //Simple X11 init (not GLX) :
     xscreen = XDefaultScreen( wm->dpy );
-    vi = XDefaultVisual( wm->dpy, xscreen ); wm->win_visual = vi; if( !vi ) prints( "XDefaultVisual error" );
-    depth = XDefaultDepth( wm->dpy, xscreen ); wm->win_depth = depth; if( !depth ) prints( "XDefaultDepth error" );
+    vi = XDefaultVisual( wm->dpy, xscreen ); wm->win_visual = vi; if( !vi ) dprint( "XDefaultVisual error\n" );
+    depth = XDefaultDepth( wm->dpy, xscreen ); wm->win_depth = depth; if( !depth ) dprint( "XDefaultDepth error\n" );
     temp_bitmap = (uchar*)malloc( 2000000 * ( depth / 8 ) );
     dprint( "depth = %d\n", depth );
     wm->cmap = cmap = XDefaultColormap( wm->dpy, xscreen );
     swa.colormap = cmap;
     swa.border_pixel = 0;
-    swa.event_mask = ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask | KeyPressMask | KeyReleaseMask 
-                     | FocusChangeMask | StructureNotifyMask;
-    wm->win = XCreateWindow( wm->dpy, XDefaultRootWindow( wm->dpy ), 0, 0, 
-                             xsize, ysize, 0, CopyFromParent,
-			     InputOutput, vi, CWBorderPixel | CWColormap | CWEventMask, 
-			     &swa );
+    swa.event_mask = 
+	( 0
+	| ExposureMask 
+	| ButtonPressMask 
+	| ButtonReleaseMask 
+	| PointerMotionMask 
+	| StructureNotifyMask 
+	| KeyPressMask 
+	| KeyReleaseMask 
+        | FocusChangeMask 
+	| StructureNotifyMask
+	);
+    wm->win = XCreateWindow( wm->dpy, XDefaultRootWindow( wm->dpy ), 0, 0, xsize, ysize, 0, CopyFromParent, InputOutput, vi, CWBorderPixel | CWColormap | CWEventMask, &swa );
     XStoreName( wm->dpy, wm->win, windowname );
 
-    wm->win_gc = XDefaultGC( wm->dpy, xscreen ); if( !wm->win_gc ) prints( "XDefaultGC error" );
+    wm->win_gc = XDefaultGC( wm->dpy, xscreen ); if( !wm->win_gc ) dprint( "XDefaultGC error\n" );
 #endif //!OPENGL
 
 #ifdef OPENGL
@@ -115,43 +137,41 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
     /*** make sure OpenGL's GLX extension supported ***/
     if( !glXQueryExtension( wm->dpy, &dummy, &dummy ) ) 
     {
-    	prints( "X server has no OpenGL GLX extension" );
+    	dprint( "X server has no OpenGL GLX extension\n" );
     }
 
     /*** find an appropriate visual ***/
     /* find an OpenGL-capable RGB visual with depth buffer */
-    vi = glXChooseVisual( wm->dpy, DefaultScreen(wm->dpy), dblBuf );
-    wm->doubleBuffer = GL_TRUE;
-    if( vi == NULL ) 
+    vi = 0;
+    if( wm->gl_double_buffer )
     {
-    	vi = glXChooseVisual( wm->dpy, DefaultScreen(wm->dpy), snglBuf );
+	vi = glXChooseVisual( wm->dpy, DefaultScreen( wm->dpy ), dblBuf );
+    }
+    if( vi == 0 ) 
+    {
+    	vi = glXChooseVisual( wm->dpy, DefaultScreen( wm->dpy ), snglBuf );
 	if( vi == NULL ) 
 	{
-	    prints( "no RGB visual with depth buffer" );
+	    dprint( "no RGB visual with depth buffer\n" );
 	}
-	wm->doubleBuffer = GL_FALSE;
+	wm->gl_double_buffer = 0;
     }
 
     /*** create an OpenGL rendering context  ***/
     /* create an OpenGL rendering context */
-    cx = glXCreateContext( wm->dpy, vi, /* no sharing of display lists */ None,
-			   /* direct rendering if possible */ GL_TRUE );
+    cx = glXCreateContext( wm->dpy, vi, /* no sharing of display lists */ None, /* direct rendering if possible */ GL_TRUE );
     if( cx == NULL ) 
     {
-	prints( "could not create rendering context" );
+	dprint( "could not create rendering context\n" );
     }
 
     /*** create an X window with the selected visual ***/
     /* create an X colormap since probably not using default visual */
-    cmap = XCreateColormap( wm->dpy, RootWindow(wm->dpy, vi->screen), vi->visual, AllocNone );
+    cmap = XCreateColormap( wm->dpy, RootWindow( wm->dpy, vi->screen ), vi->visual, AllocNone );
     swa.colormap = cmap;
     swa.border_pixel = 0;
-    swa.event_mask = ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask 
-                     | KeyPressMask | KeyReleaseMask | FocusChangeMask | StructureNotifyMask;
-    wm->win = XCreateWindow( wm->dpy, RootWindow(wm->dpy, vi->screen), 0, 0, 
-                         xsize, ysize, 0, vi->depth,
-			 InputOutput, vi->visual, CWBorderPixel | CWColormap | CWEventMask, 
-			 &swa );
+    swa.event_mask = ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask | KeyPressMask | KeyReleaseMask | FocusChangeMask | StructureNotifyMask;
+    wm->win = XCreateWindow( wm->dpy, RootWindow(wm->dpy, vi->screen), 0, 0, xsize, ysize, 0, vi->depth, InputOutput, vi->visual, CWBorderPixel | CWColormap | CWEventMask, &swa );
     XSetStandardProperties( wm->dpy, wm->win, windowname, windowname, None, wm->argv, wm->argc, NULL );
 #endif //OPENGL
 
@@ -161,8 +181,8 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
 #ifdef OPENGL
     /*** bind the rendering context to the window ***/
     glXMakeCurrent( wm->dpy, wm->win, cx );
-    gl_init();
-    gl_resize();
+    gl_init( wm );
+    gl_resize( wm );
 #endif
 
     XkbSetDetectableAutoRepeat( wm->dpy, 1, &auto_repeat );
@@ -184,17 +204,17 @@ void device_end( window_manager *wm )
 {
     int temp;
 
-    prints( "device_end(): stage 1" );
+    dprint( "device_end(): stage 1\n" );
     XkbSetDetectableAutoRepeat( wm->dpy, auto_repeat, &temp );
 #ifndef OPENGL
-    prints( "device_end(): stage 2" );
+    dprint( "device_end(): stage 2\n" );
     if( last_img ) XDestroyImage( last_img );
     last_img = 0;
     temp_bitmap = 0;
 #endif
-    prints( "device_end(): stage 3" );
+    dprint( "device_end(): stage 3\n" );
     XDestroyWindow( wm->dpy, wm->win );
-    prints( "device_end(): stage 4" );
+    dprint( "device_end(): stage 4\n" );
     XCloseDisplay( wm->dpy );
 
 #ifdef FRAMEBUFFER
@@ -204,16 +224,16 @@ void device_end( window_manager *wm )
 
 #ifdef OPENGL
 #define GET_WINDOW_COORDINATES \
-	/*Real coordinates -> window_manager coordinates*/\
-	x = winX;\
-	y = winY;\
-	x = ( x << 11 ) / wm->screen_xsize; x *= current_wm->screen_xsize; x >>= 11;\
-	y = ( y << 11 ) / wm->screen_ysize; y *= current_wm->screen_ysize; y >>= 11;
+    /*Real coordinates -> window_manager coordinates*/\
+    x = winX;\
+    y = winY;\
+    x = ( x << 11 ) / wm->screen_xsize; x *= current_wm->screen_xsize; x >>= 11;\
+    y = ( y << 11 ) / wm->screen_ysize; y *= current_wm->screen_ysize; y >>= 11;
 #else
 #define GET_WINDOW_COORDINATES \
-	/*Real coordinates -> window_manager coordinates*/\
-	x = winX;\
-	y = winY;
+    /*Real coordinates -> window_manager coordinates*/\
+    x = winX;\
+    y = winY;
 #endif
 
 int g_mod_state = 0;
@@ -225,9 +245,7 @@ long device_event_handler( window_manager *wm )
     int old_char_x, old_char_y;
     int winX, winY;
     int x, y, window_num;
-    int button = 0;
-    ulong resulted_key = 0;
-    ulong mod_state = 0;
+    int key = 0;
     KeySym sym;
     XSizeHints size_hints;
     int pend = XPending( wm->dpy );
@@ -251,11 +269,12 @@ long device_event_handler( window_manager *wm )
 		//draw_screen( wm );
 		#endif
 		//dprint( "%d %d\n", event.xexpose.x, event.xexpose.height );
-		send_event( current_wm->root_win, EVT_DRAW, 1, 0, 0, 0, 0, 1023, current_wm );
+		send_event( current_wm->root_win, EVT_DRAW, EVT_FLAG_AC, 0, 0, 0, 0, 1024, 0, current_wm );
 		break;
 	
 	    case DestroyNotify:
-		wm->exit_request = 1;
+		send_event( 0, EVT_QUIT, 0, 0, 0, 0, 0, 1024, 0, wm );
+		//wm->exit_request = 1;
 		break;
 		
 	    case ConfigureNotify:
@@ -277,28 +296,31 @@ long device_event_handler( window_manager *wm )
 		    {
 			wm->screen_xsize = event.xconfigure.width;
     	    		wm->screen_ysize = event.xconfigure.height;
-			send_event( current_wm->root_win, EVT_SCREENRESIZE, 0, 0, 0, 0, 0, 1023, current_wm );
+			send_event( current_wm->root_win, EVT_SCREENRESIZE, 0, 0, 0, 0, 0, 1024, 0, current_wm );
 		    }
 		}
 		#ifdef OPENGL
-		gl_resize();
+		current_wm->real_window_width = wm->screen_xsize;
+		current_wm->real_window_height = wm->screen_ysize;
+		gl_resize( current_wm );
 		#else
 		#endif
 		break;
 		
 	    case MotionNotify:
-		if( pend >= 2 ) break;
+		//if( pend >= 2 ) break;
 		if( event.xmotion.window != wm->win ) break;
 		winX = event.xmotion.x;
 		winY = event.xmotion.y;
 		GET_WINDOW_COORDINATES;
+		key = 0;
 		if( event.xmotion.state & Button1Mask )
-		    button |= BUTTON_LEFT;
-		if( event.xmotion.state & Button2Mask )
-		    button |= BUTTON_MIDDLE;
-		if( event.xmotion.state & Button3Mask )
-		    button |= BUTTON_RIGHT;
-		send_event( 0, EVT_MOUSEMOVE, 0, x, y, button, g_mod_state, 1023, current_wm );
+                    key |= MOUSE_BUTTON_LEFT;
+                if( event.xmotion.state & Button2Mask )
+                    key |= MOUSE_BUTTON_MIDDLE;
+                if( event.xmotion.state & Button3Mask )
+                    key |= MOUSE_BUTTON_RIGHT;
+		send_event( 0, EVT_MOUSEMOVE, g_mod, x, y, key, 0, 1024, 0, current_wm );
 		break;
 		
 	    case ButtonPress:
@@ -309,85 +331,94 @@ long device_event_handler( window_manager *wm )
 		GET_WINDOW_COORDINATES;
 		/* Get pressed button */
 	    	if( event.xbutton.button == 1 )
-		    button = BUTTON_LEFT;
+		    key = MOUSE_BUTTON_LEFT;
 		else if( event.xbutton.button == 2 )
-		    button = BUTTON_MIDDLE;
+		    key = MOUSE_BUTTON_MIDDLE;
 		else if( event.xbutton.button == 3 )
-		    button = BUTTON_RIGHT;
+		    key = MOUSE_BUTTON_RIGHT;
 		else if( ( event.xbutton.button == 4 || event.xbutton.button == 5 ) && event.type == ButtonPress )
 		{
 		    if( event.xbutton.button == 4 ) 
-			resulted_key = BUTTON_SCROLLUP;
+			key = MOUSE_BUTTON_SCROLLUP;
 		    else
-			resulted_key = BUTTON_SCROLLDOWN;
-		    send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, resulted_key, g_mod_state, 1023, current_wm );
-		    break;
+			key = MOUSE_BUTTON_SCROLLDOWN;
 		}
-		/* Get any other buttons that might be already held */
-		if( event.xbutton.state & Button1Mask )
-		    button |= BUTTON_LEFT;
-		if( event.xbutton.state & Button2Mask )
-		    button |= BUTTON_MIDDLE;
-		if( event.xbutton.state & Button3Mask )
-		    button |= BUTTON_RIGHT;
 		if( event.type == ButtonPress )
-		{
-		    send_event( 0, EVT_MOUSEBUTTONDOWN, 0, x, y, button, g_mod_state, 1023, current_wm );
-		}
+		    send_event( 0, EVT_MOUSEBUTTONDOWN, g_mod, x, y, key, 0, 1024, 0, current_wm );
 		else
-		{
-		    send_event( 0, EVT_MOUSEBUTTONUP, 0, x, y, button, g_mod_state, 1023, current_wm );
-		}
+		    send_event( 0, EVT_MOUSEBUTTONUP, g_mod, x, y, key, 0, 1024, 0, current_wm );
 		break;
 		
 	    case KeyPress:
 	    case KeyRelease:
-		if( event.xkey.state & ControlMask ) mod_state |= KEY_CTRL;
-		if( event.xkey.state & ShiftMask ) mod_state |= KEY_SHIFT;
-		if( event.xkey.state & Mod1Mask ) mod_state |= KEY_ALT;
 		sym = XKeycodeToKeysym( wm->dpy, event.xkey.keycode, 0 );
+		key = 0;
 		if( sym == NoSymbol || sym == 0 ) break;
-		if( sym <= 0xFF ) resulted_key = sym;
+		if( sym >= 0x20 && sym <= 0x7E ) key = sym;
 		switch( sym )
 		{
-		    case XK_F1: resulted_key = KEY_F1; break;
-		    case XK_F2: resulted_key = KEY_F2; break;
-		    case XK_F3: resulted_key = KEY_F3; break;
-		    case XK_F4: resulted_key = KEY_F4; break;
-		    case XK_F5: resulted_key = KEY_F5; break;
-		    case XK_F6: resulted_key = KEY_F6; break;
-		    case XK_F7: resulted_key = KEY_F7; break;
-		    case XK_F8: resulted_key = KEY_F8; break;
-		    case XK_BackSpace: resulted_key = KEY_BACKSPACE; break;
-		    case XK_Tab: resulted_key = KEY_TAB; break;
-		    case XK_Return: resulted_key = KEY_ENTER; break;
-		    case XK_Escape: resulted_key = KEY_ESCAPE; break;
-		    case XK_Left: resulted_key = KEY_LEFT; break;
-		    case XK_Right: resulted_key = KEY_RIGHT; break;
-		    case XK_Up: resulted_key = KEY_UP; break;
-		    case XK_Down: resulted_key = KEY_DOWN; break;
-		    case XK_Home: resulted_key = KEY_HOME; break;
-		    case XK_End: resulted_key = KEY_END; break;
-		    case XK_Page_Up: resulted_key = KEY_PAGEUP; break;
-		    case XK_Page_Down: resulted_key = KEY_PAGEDOWN; break;
-		    case XK_Delete: resulted_key = KEY_DELETE; break;
-		    case XK_Insert: resulted_key = KEY_INSERT; break;
-		    case XK_Caps_Lock: resulted_key = KEY_CAPS; break;
+		    case XK_F1: key = KEY_F1; break;
+		    case XK_F2: key = KEY_F2; break;
+		    case XK_F3: key = KEY_F3; break;
+		    case XK_F4: key = KEY_F4; break;
+		    case XK_F5: key = KEY_F5; break;
+		    case XK_F6: key = KEY_F6; break;
+		    case XK_F7: key = KEY_F7; break;
+		    case XK_F8: key = KEY_F8; break;
+		    case XK_F9: key = KEY_F9; break;
+		    case XK_F10: key = KEY_F10; break;
+		    case XK_F11: key = KEY_F11; break;
+		    case XK_F12: key = KEY_F12; break;
+		    case XK_BackSpace: key = KEY_BACKSPACE; break;
+		    case XK_Tab: key = KEY_TAB; break;
+		    case XK_Return: key = KEY_ENTER; break;
+		    case XK_Escape: key = KEY_ESCAPE; break;
+		    case XK_Left: key = KEY_LEFT; break;
+		    case XK_Right: key = KEY_RIGHT; break;
+		    case XK_Up: key = KEY_UP; break;
+		    case XK_Down: key = KEY_DOWN; break;
+		    case XK_Home: key = KEY_HOME; break;
+		    case XK_End: key = KEY_END; break;
+		    case XK_Page_Up: key = KEY_PAGEUP; break;
+		    case XK_Page_Down: key = KEY_PAGEDOWN; break;
+		    case XK_Delete: key = KEY_DELETE; break;
+		    case XK_Insert: key = KEY_INSERT; break;
+		    case XK_Caps_Lock: key = KEY_CAPS; break;
 		    case XK_Shift_L: 
+		    case XK_Shift_R:
+			key = KEY_SHIFT;
 			if( event.type == KeyPress )
-			    g_mod_state |= KEY_SHIFT;
+			    g_mod |= EVT_FLAG_SHIFT;
 			else
-			    g_mod_state &= ~KEY_SHIFT;
+			    g_mod &= ~EVT_FLAG_SHIFT;
+			break;
+		    case XK_Control_L: 
+		    case XK_Control_R:
+			key = KEY_CTRL;
+			if( event.type == KeyPress )
+			    g_mod |= EVT_FLAG_CTRL;
+			else
+			    g_mod &= ~EVT_FLAG_CTRL;
+			break;
+		    case XK_Alt_L: 
+		    case XK_Alt_R:
+			key = KEY_ALT;
+			if( event.type == KeyPress )
+			    g_mod |= EVT_FLAG_ALT;
+			else
+			    g_mod &= ~EVT_FLAG_ALT;
 			break;
 		}
-		if( resulted_key )
-		if( event.type == KeyPress )
+		if( key )
 		{
-		    send_event( 0, EVT_BUTTONDOWN, 0, 0, 0, 0, resulted_key | mod_state | g_mod_state, 1023, current_wm );
-		}
-		else
-		{
-		    send_event( 0, EVT_BUTTONUP, 0, 0, 0, 0, resulted_key | mod_state | g_mod_state, 1023, current_wm );
+		    if( event.type == KeyPress )
+		    {
+			send_event( 0, EVT_BUTTONDOWN, g_mod, 0, 0, key, 0, 1024, 0, current_wm );
+		    }
+		    else
+		    {
+			send_event( 0, EVT_BUTTONUP, g_mod, 0, 0, key, 0, 1024, 0, current_wm );
+		    }
 		}
 		break;
 	}
@@ -429,7 +460,7 @@ void device_find_color( XColor *col, COLOR color, window_manager *wm )
     else col->pixel = local_colors[ p ];
 }
 
-void device_screen_unlock( window_manager *wm )
+void device_screen_unlock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 1 )
     {
@@ -441,13 +472,15 @@ void device_screen_unlock( window_manager *wm )
     }
 }
 
-void device_screen_lock( window_manager *wm )
+void device_screen_lock( WINDOWPTR win, window_manager *wm )
 {
     if( wm->screen_lock_counter == 0 )
     {
     }
     wm->screen_lock_counter++;
 }
+
+#ifndef OPENGL
 
 #ifdef FRAMEBUFFER
 
@@ -493,10 +526,13 @@ void device_draw_bitmap(
     int dest_x, int dest_y, 
     int dest_xs, int dest_ys,
     int src_x, int src_y,
-    int src_xs, int src_ys,
-    COLOR *data,
+    sundog_image *bitmap,
     window_manager *wm )
 {
+    int src_xs = bitmap->xsize;
+    int src_ys = bitmap->ysize;
+    COLORPTR data = (COLORPTR)bitmap->data;
+
     XImage *img;
     if( last_img )
     {
@@ -542,10 +578,10 @@ void device_draw_bitmap(
     }
     switch( XPutImage( wm->dpy, wm->win, wm->win_gc, img, src_x, src_y, dest_x, dest_y, dest_xs, dest_ys ) )
     {
-	case BadDrawable: prints( "BadDrawable" ); break;
-	case BadGC: prints( "BadGC" ); break;
-	case BadMatch: prints( "BadMatch" ); break;
-	case BadValue: prints( "BadValue" ); break;
+	case BadDrawable: dprint( "BadDrawable\n" ); break;
+	case BadGC: dprint( "BadGC\n" ); break;
+	case BadMatch: dprint( "BadMatch\n" ); break;
+	case BadValue: dprint( "BadValue\n" ); break;
     }
 }
 
@@ -566,6 +602,8 @@ void device_draw_box( int x, int y, int xsize, int ysize, COLOR color, window_ma
 }
 
 #endif
+
+#endif //!OPENGL
 
 //#################################
 //#################################

@@ -200,7 +200,7 @@ int get_integer( void )
     return res;
 }
 
-void sunvox_load_song( char *name, sunvox_engine *s )
+void sunvox_load_song( const UTF8_CHAR *name, sunvox_engine *s )
 {
     sunvox_stop( s );
     
@@ -228,7 +228,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 	int pat_y = 0;
 
 	int s_flags = 0;
-	char s_name[ 32 ];
+	UTF8_CHAR s_name[ 32 ];
 	int (*s_synth)( PSYTEXX_SYNTH_PARAMETERS ) = 0;
 	int s_x = 0;
 	int s_y = 0;
@@ -292,9 +292,9 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 			if( pat->data )
 			    mem_free( pat->data );
 			pat->data = (sunvox_note*)pat_data;
+			pat_data = 0;
 			pat->data_xsize = pat_channels;
 			pat->data_ysize = pat_lines;
-			pat_data = 0;
 			mem_copy( pat->icon, pat_icon, 32 );
 			mem_free( pat_icon );
 			pat->ysize = pat_ysize;
@@ -312,7 +312,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 		{
 		    for( int ss = 0; ss < g_synths_num; ss++ )
 		    {
-			char *s_type = (char*)g_synths[ ss ]( 0, 0, 0, 0, 0, COMMAND_GET_SYNTH_NAME, s->net );
+			UTF8_CHAR *s_type = (UTF8_CHAR*)g_synths[ ss ]( 0, 0, 0, 0, 0, COMMAND_GET_SYNTH_NAME, s->net );
 			if( mem_strcmp( s_type, g_block_data ) == 0 ) 
 			{
 			    s_synth = g_synths[ ss ];
@@ -448,7 +448,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
     sound_stream_play();
 }
 
-void sunvox_save_song( char *name, sunvox_engine *s )
+void sunvox_save_song( const UTF8_CHAR *name, sunvox_engine *s )
 {
     //Remove empty patterns from the end of the song:
     int pats_num = s->pats_num;
@@ -464,7 +464,7 @@ void sunvox_save_song( char *name, sunvox_engine *s )
     V3_FILE f = v3_open( name, "wb" );
     if( f )
     {
-	int version = 1;
+	int version = 0x0103;
 	save_block( 'SVOX', 0, 0, f );
 	save_block( 'VERS', 4, &version, f );
 	save_block( 'BPM ', 4, &s->bpm, f );
@@ -479,23 +479,50 @@ void sunvox_save_song( char *name, sunvox_engine *s )
 	    {
 		if( !( s->pats_info[ i ].flags & SUNVOX_PATTERN_FLAG_CLONE ) )
 		{
-		    //Normal pattern. Not clone.
+		    //Normal pattern. Not a clone.
+		    int max_channels = 0;
 		    if( s->pats[ i ]->data )
 		    {
-			sunvox_note *pat = (sunvox_note*)MEM_NEW( HEAP_DYNAMIC, s->pats[ i ]->channels * s->pats[ i ]->lines * sizeof( sunvox_note ) );
-			int pptr = 0;
-			for( int yy = 0; yy < s->pats[ i ]->lines; yy++ )
+			sunvox_pattern *pat = s->pats[ i ];
+			//Get max number of channels:
+			for( int yy = 0; yy < pat->lines; yy++ )
 			{
-			    for( int xx = 0; xx < s->pats[ i ]->channels; xx++ )
+			    int pat_ptr = yy * pat->data_xsize;
+			    for( int xx = 0; xx < pat->channels; xx++ )
 			    {
-				mem_copy( &pat[ pptr ], &s->pats[ i ]->data[ yy * s->pats[ i ]->data_xsize + xx ], sizeof( sunvox_note ) );
-				pptr++;
+				sunvox_note *snote = &pat->data[ pat_ptr ];
+				if( snote->note ||
+				    snote->vel ||
+				    snote->synth ||
+				    snote->ctl ||
+				    snote->ctl_val )
+				{
+				    if( xx + 1 > max_channels )
+					max_channels = xx + 1;
+				}
+				pat_ptr++;
 			    }
 			}
-			save_block( 'PDTA', mem_get_size( pat ), pat, f );
-			mem_free( pat );
+			if( max_channels == 0 ) max_channels = 1;
+			//Packing:
+			sunvox_note *tpat = (sunvox_note*)MEM_NEW( HEAP_DYNAMIC, max_channels * pat->lines * sizeof( sunvox_note ) );
+			int pptr = 0;
+			for( int yy = 0; yy < pat->lines; yy++ )
+			{
+			    int pat_ptr = yy * pat->data_xsize;
+			    for( int xx = 0; xx < max_channels; xx++ )
+			    {
+				sunvox_note *snote = &pat->data[ pat_ptr ];
+				mem_copy( &tpat[ pptr ], &pat->data[ pat_ptr ], sizeof( sunvox_note ) );
+				pptr++;
+				pat_ptr++;
+			    }
+			}
+			//Save pattern:
+			save_block( 'PDTA', pptr * sizeof( sunvox_note ), tpat, f );
+			mem_free( tpat );
 		    }
-		    save_block( 'PCHN', 4, &s->pats[ i ]->channels, f );
+		    save_block( 'PCHN', 4, &max_channels, f );
 		    save_block( 'PLIN', 4, &s->pats[ i ]->lines, f );
 		    save_block( 'PYSZ', 4, &s->pats[ i ]->ysize, f );
 		    save_block( 'PICO', 32, s->pats[ i ]->icon, f );
@@ -525,7 +552,7 @@ void sunvox_save_song( char *name, sunvox_engine *s )
 		if( synth->synth )
 		{
 		    //Save synth's type (string):
-		    char *synth_type = (char*)synth->synth( synth->data_ptr, i, 0, 0, 0, COMMAND_GET_SYNTH_NAME, net );
+		    UTF8_CHAR *synth_type = (UTF8_CHAR*)synth->synth( synth->data_ptr, i, 0, 0, 0, COMMAND_GET_SYNTH_NAME, net );
 		    if( synth_type )
 			save_block( 'STYP', mem_strlen( synth_type ) + 1, synth_type, f );
 		}
@@ -569,7 +596,7 @@ void sunvox_save_song( char *name, sunvox_engine *s )
     }
 }
 
-int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
+int sunvox_load_synth( int x, int y, const UTF8_CHAR *name, sunvox_engine *s )
 {
     int retval = -1;
 
@@ -585,7 +612,7 @@ int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
 	int chunk_num = 0;
 	int chunks_num = 0;
 	char **chunks = 0;
-	char *name = 0;
+	UTF8_CHAR *s_name = 0;
 	int flags = 0;
 	int finetune = 0;
 	int relative = 0;
@@ -598,7 +625,7 @@ int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
 	    if( g_block_id == 0 ) break;
 	    if( g_block_id == 'SSYN' ) {}
 	    if( g_block_id == 'VERS' ) {}
-	    if( g_block_id == 'SNAM' ) { name = g_block_data; g_block_data = 0; }
+	    if( g_block_id == 'SNAM' ) { s_name = g_block_data; g_block_data = 0; }
 	    if( g_block_id == 'SFFF' ) flags = get_integer();
 	    if( g_block_id == 'SFIN' ) finetune = get_integer();
 	    if( g_block_id == 'SREL' ) relative = get_integer();
@@ -606,7 +633,7 @@ int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
 	    {
 		for( int ss = 0; ss < g_synths_num; ss++ )
 		{
-		    char *s_type = (char*)g_synths[ ss ]( 0, 0, 0, 0, 0, COMMAND_GET_SYNTH_NAME, s->net );
+		    UTF8_CHAR *s_type = (UTF8_CHAR*)g_synths[ ss ]( 0, 0, 0, 0, 0, COMMAND_GET_SYNTH_NAME, s->net );
 		    if( mem_strcmp( s_type, g_block_data ) == 0 ) 
 		    {
 			s_synth = g_synths[ ss ];
@@ -630,9 +657,9 @@ int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
 	    }
 	    if( g_block_id == 'SEND' )
 	    {
-		int retval = psynth_add_synth( s_synth, name, flags, x, y, 0, s->net );
-		if( name ) mem_free( name );
-		name = 0;
+		int retval = psynth_add_synth( s_synth, s_name, flags, x, y, 0, s->net );
+		if( s_name ) mem_free( s_name );
+		s_name = 0;
 		//Save standart properties:
 		s->net->items[ retval ].finetune = finetune;
 		s->net->items[ retval ].relative_note = relative;
@@ -668,7 +695,7 @@ int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
     return retval;
 }
 
-void sunvox_save_synth( int synth_id, char *name, sunvox_engine *s )
+void sunvox_save_synth( int synth_id, const UTF8_CHAR *name, sunvox_engine *s )
 {
     psynth_net *net = s->net;
     if( (unsigned)synth_id < (unsigned)net->items_num && ( net->items[ synth_id ].flags & PSYNTH_FLAG_EXISTS ) )
@@ -685,7 +712,7 @@ void sunvox_save_synth( int synth_id, char *name, sunvox_engine *s )
 	    if( synth->synth )
 	    {
 		//Save synth's type (string):
-		char *synth_type = (char*)synth->synth( synth->data_ptr, synth_id, 0, 0, 0, COMMAND_GET_SYNTH_NAME, net );
+		UTF8_CHAR *synth_type = (UTF8_CHAR*)synth->synth( synth->data_ptr, synth_id, 0, 0, 0, COMMAND_GET_SYNTH_NAME, net );
 		if( synth_type )
 		    save_block( 'STYP', mem_strlen( synth_type ) + 1, synth_type, f );
 	    }
@@ -722,7 +749,7 @@ void sunvox_save_synth( int synth_id, char *name, sunvox_engine *s )
     }
 }
 
-unsigned int sunvox_get_song_length( sunvox_engine *s )
+unsigned int sunvox_get_song_length( sunvox_engine *s ) //ret song len in frames
 {
     int number_of_lines = 0;
     for( int p = 0; p < s->pats_num; p++ )
@@ -776,7 +803,8 @@ unsigned int sunvox_get_song_length( sunvox_engine *s )
 	    } //if( pat_info->x + pat_lines > 0 ...
 	} //if( pat...
     } //for( p...
-    ulong len = 0;
+    ulong len1 = 0;
+    ulong len2 = 0;
     int bpm = s->bpm;
     int speed = s->speed;
     for( int l = 0; l < number_of_lines; l++ )
@@ -784,21 +812,27 @@ unsigned int sunvox_get_song_length( sunvox_engine *s )
 	if( bpm_table[ l ] ) bpm = bpm_table[ l ];
 	if( speed_table[ l ] ) speed = speed_table[ l ];
 	int one_tick = ( ( ( s->net->sampling_freq * 60 ) << 8 ) / bpm ) / 24;
-	len += one_tick * speed;
+	int add = one_tick * speed;
+	len1 += add >> 8;
+	len2 += add & 255;
+	if( len2 > 255 ) 
+	{
+	    len2 -= 256;
+	    len1++;
+	}
     }
-    len >>= 8;
 
     if( speed_table ) mem_free( speed_table );
     if( bpm_table ) mem_free( bpm_table );
 
-    return len;
+    return len1;
 }
 
 int g_cancel_export_to_wav = 0;
 
 //mode: 0 - 16bit WAV; 1 - 32bit (float) WAV
 void sunvox_export_to_wav( 
-    char *name, 
+    const UTF8_CHAR *name, 
     int mode,
     void (*status_handler)( void*, ulong ), 
     void *status_data, sunvox_engine *s )
@@ -808,10 +842,10 @@ void sunvox_export_to_wav(
     
     //Calculate song length:
     unsigned int len = sunvox_get_song_length( s );
-    dprint( "Song length (samples): %d\n", len );
+    dprint( "Song length (frames): %d\n", len );
 
     int channels = 2;
-    int bytes = 2;
+    int bytes = 2; //bytes per sample. Bytes per frame = bytes * channels
 
     if( mode == 1 )
     {
@@ -884,12 +918,12 @@ void sunvox_export_to_wav(
 	    if( mode == 1 )
 	    {	    
 		//Float 32 bits
-		sunvox_render_piece_of_sound( buf, 3, 2, s->net->sampling_freq, buf_size, s );
+		sunvox_render_piece_of_sound( 1, buf, buf_size, channels, s->net->sampling_freq, 0, s );
 	    }
 	    else
 	    {
 		//Int 16 bits
-		sunvox_render_piece_of_sound( buf, 1, 2, s->net->sampling_freq, buf_size, s );
+		sunvox_render_piece_of_sound( 0, buf, buf_size, channels, s->net->sampling_freq, 0, s );
 	    }
 	    v3_write( buf, bytes * channels, buf_size, f );
 	    r_cnt += buf_size;
@@ -1420,7 +1454,7 @@ void clean_std_effects_for_playing_pattern( int pat_num, sunvox_engine *s )
     for( int i = 0; i < MAX_PATTERN_CHANNELS; i++ )
     {
 	sunvox_std_eff *eff = &s->std_eff[ pat_num ];
-	eff->tone_porta = 0;
+	eff->flags = 0;
 	eff->vel_speed = 0;
 	pat_num++;
     }
@@ -1455,6 +1489,8 @@ void sunvox_play( sunvox_engine *s )
     }
     s->start_time = time_ticks();
     s->single_pattern_play = -1;
+    s->end_of_song = 0;
+    s->stop_at_the_end_of_song = 0;
 }
 
 void sunvox_play_from_beginning( sunvox_engine *s )
@@ -1486,11 +1522,13 @@ void sunvox_play_from_beginning( sunvox_engine *s )
     }
     s->single_pattern_play = -1;
     s->start_time = time_ticks();
+    s->end_of_song = 0;
+    s->stop_at_the_end_of_song = 0;
 }
 
 void sunvox_rewind( int t, sunvox_engine *s )
 {
-    int playing = 0;
+    int playing;
     playing = s->playing;
     if( playing ) sunvox_stop( s );
     s->single_pattern_play = -1;
@@ -1518,6 +1556,12 @@ void sunvox_stop( sunvox_engine *s )
 	remove_link_to_effects_for_playing_pattern( i, s );
 }
 
+#define GET_PERIOD_PTR( p, snum, n ) \
+{ \
+    p = ( 7680 * 4 ) - ( n ) * 256 - net->items[ snum ].finetune - net->items[ snum ].relative_note * 256; \
+    if( p >= 7680 * 4 ) p = 7680 * 4; \
+}
+
 void sunvox_handle_command( 
     sunvox_note *snote, 
     psynth_net *net,
@@ -1526,16 +1570,9 @@ void sunvox_handle_command(
     int channel_num,
     sunvox_engine *s )
 {
-    /********************/
-    /* Get synth number */
-    /********************/
-
-    int synth_num = snote->synth;
-    synth_num--;
-
-    /***********************/
-    /* Get pattern pointer */
-    /***********************/
+    //
+    // Get pattern pointer
+    //
 
     sunvox_pattern_info *pat_info;
     if( pat_num >= 0 ) 
@@ -1544,51 +1581,59 @@ void sunvox_handle_command(
     }
     else
     {
-	//pat_num == -1. It's command from user.
+	//pat_num == -1. It's command from user - not linked to song pattern.
 	pat_info = &s->user_pat_info;
 	pat_num = 0xFFFF;
     }
 
-    /*************************************************************/
-    /* Get pointer to structure with standart effect's variables */
-    /*************************************************************/
-
+    //
+    // Get pointer to structure with standart effect's variables
+    //
+    
     sunvox_std_eff *eff = 0;
     if( pat_num != 0xFFFF )
 	eff = &s->std_eff[ pat_info->std_eff_ptr * MAX_PATTERN_CHANNELS + channel_num ];
 
+    //
+    // Handle new note
+    //
+
     int note = snote->note;
+    int note_num;
+    if( note > 0 && note < 128 ) 
+	note_num = 1;
+    else
+	note_num = 0;
     int vel = snote->vel;
     int ctl = snote->ctl;
     int ctl_val = snote->ctl_val;
 
-    /*******************/
-    /* Handle new note */
-    /*******************/
-
-    if( note > 0 && note < 128 && ctl != 0x3 )
+    if( note_num && ctl != 0x3 )
     {
 	//Note ON:
+	int synth_num = snote->synth - 1;
 	if( synth_num >= 0 && synth_num < net->items_num ) 
 	{
+	    //Set note:
 	    net->note = note - 1;
+	    
+	    //Set velocity:
 	    if( snote->vel )
-	    {
 		net->velocity = ( vel - 1 ) * 2;
-	    }
 	    else
-	    {
 		net->velocity = 256;
-	    }
 	    if( eff ) eff->cur_vel = net->velocity;
+	    
+	    //Set channel ID:
 	    net->channel_id = ( pat_num << 16 ) | channel_num;
-	    {
-		int period = 7680 - net->note * 64 - net->items[ synth_num ].finetune / 4 - net->items[ synth_num ].relative_note * 64;
-		//if( period < 0 ) period = 0;
-		if( period >= 7680 ) period = 7680 - 1;
-		if( eff ) eff->cur_period = period;
-		net->period_ptr = period * 4;
-	    }
+	    
+	    //Set period:
+	    int period;
+	    GET_PERIOD_PTR( period, synth_num, net->note );
+	    if( eff ) eff->cur_period = period;
+	    net->period_ptr = period;
+
+	    //Execute synth handler:
 	    if( net->items[ synth_num ].synth )
 	    {
 		if( pat_info->channel_status[ channel_num ] < 128 )
@@ -1623,7 +1668,7 @@ void sunvox_handle_command(
     if( note == 128 )
     {
 	//Note OFF:
-	synth_num = pat_info->channel_synth[ channel_num ];
+	int synth_num = pat_info->channel_synth[ channel_num ];
 	if( synth_num < net->items_num && net->items[ synth_num ].synth )
 	{
 	    if( pat_info->channel_status[ channel_num ] < 128 )
@@ -1675,13 +1720,13 @@ void sunvox_handle_command(
 	}
     }
 
-    /********************/
-    /* Set new velocity */
-    /********************/
+    //
+    // Set new velocity
+    //
 
-    if( vel && ( !(note>0&&note<128) || ctl == 0x3 ) )
+    if( vel && ( note_num == 0 || ctl == 0x3 ) )
     {
-	synth_num = pat_info->channel_synth[ channel_num ];
+	int synth_num = pat_info->channel_synth[ channel_num ];
 	if( synth_num < net->items_num && net->items[ synth_num ].synth )
 	{
 	    net->channel_id = ( pat_num << 16 ) | channel_num;
@@ -1697,29 +1742,26 @@ void sunvox_handle_command(
 	}
     }
 
-    /******************************/
-    /* Handle controller's values */
-    /******************************/
+    //
+    // Handle controller's values
+    //
 
     if( ctl & 0xFF00 )
     {
-	//Global controller:
+	//Global or local controller:
+	int synth_num = snote->synth - 1;
 	int command_type = COMMAND_SET_LOCAL_CONTROLLER;
 	if( synth_num >= 0 && note == 0 )
 	{
 	    //It's a global controller:
 	    command_type = COMMAND_SET_GLOBAL_CONTROLLER;
 	}
-	if( synth_num >= 0 )
-	{
-	    //Synth selected
-	}
-	else
+	if( synth_num == -1 )
 	{
 	    //Synth not selected. Use previous on this channel:
 	    synth_num = pat_info->channel_synth[ channel_num ];
 	}
-	if( synth_num >= 0 && synth_num < net->items_num )
+	if( synth_num < net->items_num )
 	{
 	    if( command_type == COMMAND_SET_LOCAL_CONTROLLER )
 	    {
@@ -1762,53 +1804,86 @@ void sunvox_handle_command(
 	}
     }
 
+    //
+    // Handle standart effects
+    //
+
     //Clean std effects for this channel:
     if( eff )
     {
-	eff->tone_porta = 0;
+	eff->flags &= EFF_FLAG_ARPEGGIO_IN_PREVIOUS_TICK;
 	eff->vel_speed = 0;
+	eff->arpeggio = 0;
     }
-
-    /***************************/
-    /* Handle standart effects */
-    /***************************/
 
     if( ctl & 0x00FF )
     {
+	int synth_num = snote->synth - 1;
+	if( synth_num == -1 )
+	{
+	    //Synth not selected. Use previous on this channel:
+	    synth_num = pat_info->channel_synth[ channel_num ];
+	}
 	switch( ctl & 0x00FF )
 	{
 	    case 0x1:
 		//Porta up:
 		if( eff )
 		{
-		    eff->tone_porta = 1;
-		    eff->target_period = -7680;
+		    eff->flags |= EFF_FLAG_TONE_PORTA;
+		    eff->target_period = -7680 * 4;
 		    if( ctl_val )
-			eff->porta_speed = ctl_val;
+			eff->porta_speed = ctl_val * 4;
 		}
 		break;
 	    case 0x2:
 		//Porta down:
 		if( eff )
 		{
-		    eff->tone_porta = 1;
-		    eff->target_period = 7680;
+		    eff->flags |= EFF_FLAG_TONE_PORTA;
+		    eff->target_period = 7680 * 4;
 		    if( ctl_val )
-			eff->porta_speed = ctl_val;
+			eff->porta_speed = ctl_val * 4;
 		}
 		break;
 	    case 0x3:
 		//Tone portamento:
 		if( eff )
 		{
-		    eff->tone_porta = 1;
-		    if( synth_num >= 0 && synth_num < net->items_num )
+		    eff->flags |= EFF_FLAG_TONE_PORTA;
+		    if( synth_num < net->items_num )
 		    {
-			if( note > 0 && note < 128 )
-			    eff->target_period = 7680 - ( note - 1 ) * 64 - net->items[ synth_num ].finetune / 4 - net->items[ synth_num ].relative_note * 64;
+			if( note_num )
+			{
+			    int period;
+			    GET_PERIOD_PTR( period, synth_num, note - 1 );
+			    eff->target_period = (int16)period;
+			}
 		    }
 		    if( ctl_val )
-			eff->porta_speed = ctl_val;
+			eff->porta_speed = ctl_val * 4;
+		}
+		break;
+	    case 0x8:
+		//Arpeggio:
+		if( eff )
+		{
+		    eff->arpeggio = (uint16)ctl_val;
+		}
+		break;
+	    case 0x9:
+		//Set sample offset:
+		if( synth_num < net->items_num && net->items[ synth_num ].synth )
+		{
+		    net->channel_id = ( pat_num << 16 ) | channel_num;
+		    net->synth_channel = pat_info->channel_status[ channel_num ] & 127;
+		    net->sample_offset = (ulong)ctl_val * 256;
+		    net->items[ synth_num ].synth( 
+			net->items[ synth_num ].data_ptr,
+			synth_num,
+			0, 0, 0,
+			COMMAND_SET_SAMPLE_OFFSET,
+			net );
 		}
 		break;
 	    case 0xA:
@@ -1853,11 +1928,14 @@ void sunvox_handle_std_effects(
     int synth_num = pat_info->channel_synth[ channel_num ];
     if( synth_num >= net->items_num ) return;
 
-    if( eff->tone_porta )
+    int period;
+    int period_changed = 0;
+
+    if( eff->flags & EFF_FLAG_TONE_PORTA )
     {
-	if( eff->cur_period < eff->target_period ) 
-	{
-	    eff->cur_period += eff->porta_speed;
+        if( eff->cur_period < eff->target_period ) 
+        {
+    	    eff->cur_period += eff->porta_speed;
 	    if( eff->cur_period > eff->target_period ) eff->cur_period = eff->target_period;
 	}
 	else if( eff->cur_period > eff->target_period ) 
@@ -1865,10 +1943,32 @@ void sunvox_handle_std_effects(
 	    eff->cur_period -= eff->porta_speed;
 	    if( eff->cur_period < eff->target_period ) eff->cur_period = eff->target_period;
 	}
-	int period = eff->cur_period;
-	//if( period < 0 ) period = 0;
-	if( period >= 7680 ) period = 7680 - 1;
-	net->period_ptr = period * 4;
+	period = eff->cur_period;
+	period_changed = 1;
+    }
+    
+    if( eff->arpeggio )
+    {
+	period = eff->cur_period;
+	switch( s->speed_counter % 3 )
+	{
+	    case 1: period -= ( ( eff->arpeggio >> 8 ) & 255 ) * 256; break;
+	    case 2: period -= ( eff->arpeggio & 255 ) * 256; break;
+	}
+	eff->flags |= EFF_FLAG_ARPEGGIO_IN_PREVIOUS_TICK;
+	period_changed = 1;
+    }
+    else if( eff->flags & EFF_FLAG_ARPEGGIO_IN_PREVIOUS_TICK )
+    {
+	eff->flags &= ~( EFF_FLAG_ARPEGGIO_IN_PREVIOUS_TICK );
+	period = eff->cur_period;
+	period_changed = 1;
+    }
+
+    if( period_changed )
+    {
+	if( period > 7680 * 4 ) period = 7680 * 4;
+	net->period_ptr = period;
 	if( net->items[ synth_num ].synth )
 	{
 	    net->synth_channel = pat_info->channel_status[ channel_num ] & 127;
@@ -1915,11 +2015,16 @@ void sunvox_send_user_command( sunvox_note *snote, int channel_num, sunvox_engin
 }
 
 //Buffer types:
-// 0 - 8 bits (int)
-// 1 - 16 bits (int)
-// 2 - 32 bits (int)
-// 3 - 32 bits (float)
-void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, int freq, int samples, sunvox_engine *s )
+// 0 - 16 bits (int)
+// 1 - 32 bits (float)
+void sunvox_render_piece_of_sound( 
+    int buffer_type,
+    void *buffer,
+    int frames,
+    int channels, 
+    int freq, 
+    ticks_t out_time,
+    sunvox_engine *s )
 {
     if( s == 0 ) return;
     if( s->net == 0 ) return;
@@ -1934,11 +2039,11 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 //######## [ Visualization frames ] ########
 //##########################################
 #ifndef PALMOS
-    s->f_buffer_start_time[ ( s->f_current_buffer + 1 ) & SUNVOX_F_BUFFERS_MASK ] = time_ticks();
-#endif
     s->f_current_buffer = ( s->f_current_buffer + 1 ) & SUNVOX_F_BUFFERS_MASK;
-    int f_next_buffer = ( s->f_current_buffer + 1 ) & SUNVOX_F_BUFFERS_MASK;
-    s->f_buffer_size[ f_next_buffer ] = 0;
+    int f_current_buffer = s->f_current_buffer;
+    s->f_buffer_start_time[ f_current_buffer ] = out_time;
+    s->f_buffer_size[ f_current_buffer ] = 0;
+#endif
 //##########################################
 //##########################################
 //##########################################
@@ -1951,11 +2056,11 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
     while( 1 )
     {
 	//Get size of current piece:
-	int size = samples - ptr;
+	int size = frames - ptr;
 	if( size > PSYNTH_BUFFER_SIZE ) size = PSYNTH_BUFFER_SIZE;
 	if( size > ( one_tick - s->tick_counter ) / 256 ) size = ( one_tick - s->tick_counter ) / 256;
 	if( ( one_tick - s->tick_counter ) & 255 ) size++; //size correction
-	if( size > samples - ptr ) size = samples - ptr;
+	if( size > frames - ptr ) size = frames - ptr;
 	if( size < 0 ) size = 0;
 	if( size > 0 )
 	{
@@ -1965,7 +2070,7 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 	    for( int ch = 0; ch < s->net->items[ 0 ].input_channels; ch++ )
 	    {
 		STYPE *chan = s->net->items[ 0 ].channels_in[ ch ];
-		if( buffer_type == 1 )
+		if( buffer_type == 0 )
 		{
 		    // 16 bits (int)
 		    signed short *output = (signed short*)buffer;
@@ -1978,7 +2083,7 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 			i2 += channels;
 		    }
 		}
-		else if( buffer_type == 3 )
+		else if( buffer_type == 1 )
 		{
 		    // 32 bits (float)
 		    float *output = (float*)buffer;
@@ -1996,15 +2101,36 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 //##########################################
 //######## [ Visualization frames ] ########
 //##########################################
-	int new_size = ( ( ( ( ptr + size ) * 256 ) / freq ) * SUNVOX_FPS ) / 256;
-	if( new_size > SUNVOX_F_BUFFER_SIZE ) new_size = SUNVOX_F_BUFFER_SIZE;
-	int f_off = SUNVOX_F_BUFFER_SIZE * f_next_buffer;
-	int ptr2 = ptr << 8;
-	int ptr2_step = ( freq << 8 ) / SUNVOX_FPS;
-	for( int fp = s->f_buffer_size[ f_next_buffer ]; fp < new_size; fp ++ )
+#ifdef PALMOS
+	s->f_lines[ 0 ] = s->time_counter;
+	if( buffer_type == 0 )
 	{
-	    s->f_ticks[ f_off + fp ] = s->time_counter;
-	    if( buffer_type == 1 )
+	    // 16 bits (int)
+	    int val_l;
+	    int val_r;
+	    signed short *output = (signed short*)buffer;
+	    val_l = output[ 0 ];
+	    if( channels > 1 )
+	        val_r = output[ 1 ];
+	    else
+		val_r = val_l;
+    	    if( val_l < 0 ) val_l = -val_l;
+	    if( val_r < 0 ) val_r = -val_r;
+	    if( val_l > 32767 ) val_l = 32767;
+	    if( val_r > 32767 ) val_r = 32767;
+	    s->f_volumes_l[ 0 ] = val_l >> 7;
+	    s->f_volumes_r[ 0 ] = val_r >> 7;
+	}
+#else
+	int new_size = ( ( ( ( ptr + size ) * 256 ) / freq ) * SUNVOX_F_BUFFER_SIZE ) / 256;
+	if( new_size > SUNVOX_F_BUFFER_SIZE ) new_size = SUNVOX_F_BUFFER_SIZE;
+	int f_off = SUNVOX_F_BUFFER_SIZE * f_current_buffer;
+	int ptr2 = ptr << 8;
+	int ptr2_step = ( freq << 8 ) / SUNVOX_F_BUFFER_SIZE;
+	for( int fp = s->f_buffer_size[ f_current_buffer ]; fp < new_size; fp ++ )
+	{
+	    s->f_lines[ f_off + fp ] = s->time_counter;
+	    if( buffer_type == 0 )
 	    {
 		// 16 bits (int)
 		int val_l;
@@ -2022,9 +2148,56 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 		s->f_volumes_l[ f_off + fp ] = val_l >> 7;
 		s->f_volumes_r[ f_off + fp ] = val_r >> 7;
 	    }
+	    if( buffer_type == 1 )
+	    {
+		// 32 bits (float)
+		float *output = (float*)buffer;
+		int val_l;
+		int val_r;
+		val_l = (int)( output[ ( (ptr2>>8) * channels ) + 0 ] * 32767 );
+		if( channels > 1 )
+		    val_r = (int)( output[ ( (ptr2>>8) * channels ) + 1 ] * 32767 );
+		else
+		    val_r = val_l;
+		if( val_l < 0 ) val_l = -val_l;
+		if( val_r < 0 ) val_r = -val_r;
+		if( val_l > 32767 ) val_l = 32767;
+		if( val_r > 32767 ) val_r = 32767;
+		s->f_volumes_l[ f_off + fp ] = val_l >> 7;
+		s->f_volumes_r[ f_off + fp ] = val_r >> 7;
+#ifdef SUNVOX_F_SYNTHS
+		for( int fs = 0; fs < s->net->items_num; fs++ )
+		{
+		    psynth_net_item *synth = &s->net->items[ fs ];
+		    int f_synth_off = fs * SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS;
+		    int v_i;
+		    if( ( synth->flags & PSYNTH_FLAG_EXISTS ) && synth->channels_out[ 0 ] )
+		    {
+			STYPE v = synth->channels_out[ 0 ][ ( ptr2 >> 8 ) - ptr ];
+			v *= 32768;
+			v_i = (int)v;
+			if( v_i < 0 ) v_i = -v_i;
+		    }
+		    else
+		    {
+		        v_i = 0;
+		    }
+		    if( v_i < s->f_synth_prev_volume[ fs ] )
+		    {
+			if( v_i <= 1024 )
+			    v_i = s->f_synth_prev_volume[ fs ] - 300;
+			else
+			    v_i = s->f_synth_prev_volume[ fs ] - 1024;
+		    }
+    		    s->f_synth_volumes[ f_off + fp + f_synth_off ] = v_i;
+		    s->f_synth_prev_volume[ fs ] = v_i;
+		}
+#endif
+	    }
 	    ptr2 += ptr2_step;
 	}
-	s->f_buffer_size[ f_next_buffer ] = new_size;
+	s->f_buffer_size[ f_current_buffer ] = new_size;
+#endif
 //##########################################
 //##########################################
 //##########################################
@@ -2081,6 +2254,23 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 		//Song finished?
 		if( s->time_counter >= s->song_lines )
 		{
+		    if( s->stop_at_the_end_of_song )
+		    {
+			s->end_of_song = 1;
+			s->playing = 0;
+			s->single_pattern_play = -1;
+			sunvox_note temp_note;
+			temp_note.note = NOTECMD_ALL_NOTES_OFF;
+			temp_note.vel = 0;
+			temp_note.synth = 0;
+			temp_note.ctl = 0;
+			temp_note.ctl_val = 0;
+			sunvox_handle_command( &temp_note, s->net, -1, -1, 0, s );
+			for( int i = 0; i < MAX_PATTERN_CHANNELS; i++ ) s->user_pat_info.channel_status[ i ] = 255;
+			for( int i = 0; i < MAX_PLAYING_PATS; i++ ) 
+			    clean_std_effects_for_playing_pattern( i, s );
+			goto end_of_tick_handling;
+		    }
 		    //Rewind it to start point:
 		    rewind = 0;
 		}
@@ -2295,11 +2485,14 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 	    // End of tick handling ###############################################
 	    //#####################################################################
 	}
+
+end_of_tick_handling:
+
 	if( s->tick_counter >= one_tick && s->playing == 0 )
 	{
 	    s->tick_counter -= one_tick;
 	}
-	if( ptr >= samples )
+	if( ptr >= frames )
 	{
 	    //Out of buffer space:
 	    break;
@@ -2309,32 +2502,52 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
     psynth_cpu_usage_recalc( s->net );
 }
 
-int sunvox_frames_get_ticks( sunvox_engine *s )
+int sunvox_frames_get_value( int channel, sunvox_engine *s )
 {
-    int buf = s->f_current_buffer;
-    ticks_t t = time_ticks();
-    ticks_t start_t = s->f_buffer_start_time[ buf ];
-    ulong frame = ( ( t - start_t ) * SUNVOX_FPS ) / time_ticks_per_second();
-    int size = s->f_buffer_size[ buf ];
-    if( size > SUNVOX_F_BUFFER_SIZE ) size = SUNVOX_F_BUFFER_SIZE;
-    if( size <= 0 ) frame = 0;
-    if( frame > 0 && frame >= (unsigned)size ) frame = size - 1;
-    int ticks = s->f_ticks[ buf * SUNVOX_F_BUFFER_SIZE + frame ];
-    return ticks;
-}
+    int buf = 0;
 
-int sunvox_frames_get_volume( int channel, sunvox_engine *s )
-{
-    int buf = s->f_current_buffer;
-    ticks_t t = time_ticks();
-    ticks_t start_t = s->f_buffer_start_time[ buf ];
-    ulong frame = ( ( t - start_t ) * SUNVOX_FPS ) / time_ticks_per_second();
-    int size = s->f_buffer_size[ buf ];
+#ifdef PALMOS
+    ulong frame = 0;
+#else
+    ticks_t t = time_ticks_per_second() * 30;
+    ticks_t t_relative_point = time_ticks() - t;
+    ticks_t t_buf_start = 0;
+    for( int i = 0; i < SUNVOX_F_BUFFERS; i++ )
+    {
+	int t_buf_start2 = s->f_buffer_start_time[ i ] - t_relative_point;
+	if( (int)t >= t_buf_start2 && t_buf_start2 > (int)t_buf_start )
+	{
+	    t_buf_start = t_buf_start2;
+	    buf = i;
+	}
+    }
+    ulong frame = ( ( t - t_buf_start ) * SUNVOX_F_BUFFER_SIZE ) / time_ticks_per_second();
+    ulong size = s->f_buffer_size[ buf ];
     if( size > SUNVOX_F_BUFFER_SIZE ) size = SUNVOX_F_BUFFER_SIZE;
-    if( size <= 0 ) frame = 0;
     if( frame > 0 && frame >= (unsigned)size ) frame = size - 1;
-    if( channel == 0 ) return s->f_volumes_r[ buf * SUNVOX_F_BUFFER_SIZE + frame ];
-    if( channel == 1 ) return s->f_volumes_l[ buf * SUNVOX_F_BUFFER_SIZE + frame ];
+#endif
+
+    switch( channel )
+    {
+	case SUNVOX_F_CHANNEL_LINES:
+	    return s->f_lines[ buf * SUNVOX_F_BUFFER_SIZE + frame ];
+	    break;
+	case SUNVOX_F_CHANNEL_VOL0:
+	    return s->f_volumes_l[ buf * SUNVOX_F_BUFFER_SIZE + frame ];
+	    break;
+	case SUNVOX_F_CHANNEL_VOL1:
+	    return s->f_volumes_r[ buf * SUNVOX_F_BUFFER_SIZE + frame ];
+	    break;
+	default:
+#ifdef SUNVOX_F_SYNTHS	
+	    if( channel >= SUNVOX_F_CHANNEL_SYNTH_VOL )
+	    {
+		int off = ( channel - SUNVOX_F_CHANNEL_SYNTH_VOL ) * SUNVOX_F_BUFFER_SIZE * SUNVOX_F_BUFFERS;
+		return s->f_synth_volumes[ buf * SUNVOX_F_BUFFER_SIZE + frame + off ];
+	    }
+#endif
+	    break;
+    }
+    
     return 0;
 }
-

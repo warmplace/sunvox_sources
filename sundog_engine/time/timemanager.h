@@ -11,11 +11,10 @@ ulong time_seconds( void );
 ticks_t time_ticks_per_second( void );
 ticks_t time_ticks( void );
 
-#if defined(LINUX) || defined(WIN32)
+#if defined(LINUX) || defined(WIN) || defined(WINCE)
 #define HIRES_TIMER
 ticks_t time_ticks_per_second_hires( void );
 ticks_t time_ticks_hires( void );
 #endif
 
 #endif
-

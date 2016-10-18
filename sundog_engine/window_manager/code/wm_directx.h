@@ -1,7 +1,7 @@
 /*
     wm_directx.h. Platform-dependent module : DirectDraw (Win32)
     This file is part of the SunDog engine.
-    Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
+    Copyright (C) 2002 - 2009 Alex Zolotov <nightradio@gmail.com>
 */
 
 #ifndef __WINMANAGER_DIRECTX__

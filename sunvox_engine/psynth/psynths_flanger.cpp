@@ -189,6 +189,7 @@ int SYNTH_HANDLER(
 			    out_val = buf_val;
 			    out_val *= data->ctl_feedback;
 			    out_val /= 256;
+			    denorm_add_white_noise( out_val );
 			    cbuf[ buf_ptr ] = in[ i ] + out_val;
 
 			    buf_ptr++;

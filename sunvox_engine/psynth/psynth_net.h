@@ -26,12 +26,19 @@ void psynth_init( int flags, int freq, psynth_net *pnet );
 void psynth_close( psynth_net *pnet );
 void psynth_clear( psynth_net *pnet );
 void psynth_render_clear( int size, psynth_net *pnet );
-int psynth_add_synth(  int (*synth)(  
-			    PSYTEXX_SYNTH_PARAMETERS
-		       ), char *name, int flags, int x, int y, int instr_num, psynth_net *pnet );
+int psynth_add_synth(  
+    int (*synth)(
+        PSYTEXX_SYNTH_PARAMETERS
+    ), 
+    const UTF8_CHAR *name, 
+    int flags, 
+    int x, 
+    int y, 
+    int instr_num, 
+    psynth_net *pnet );
 void psynth_synth_setup_finished( int snum, psynth_net *pnet );
 void psynth_remove_synth( int snum, psynth_net *pnet );
-int psynth_get_synth_by_name( char *name, psynth_net *pnet );
+int psynth_get_synth_by_name( UTF8_CHAR *name, psynth_net *pnet );
 void psynth_make_link( int out, int in, psynth_net *pnet ); //out.link = in; Example: out = OUT; in = SYNTH
 int psynth_remove_link( int out, int in, psynth_net *pnet );
 void psynth_cpu_usage_clean( psynth_net *pnet );

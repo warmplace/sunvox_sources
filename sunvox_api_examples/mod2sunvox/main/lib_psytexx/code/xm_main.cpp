@@ -240,7 +240,7 @@ int mod_load( V3_FILE f, xm_struct *xm )
     instrument *ins;
     sample *smp;
 
-    prints( "Loading Amiga MOD" );
+    dprint( "Loading Amiga MOD\n" );
 
     //Prepare song:
     clear_song( xm );     //Clear old song
@@ -261,18 +261,18 @@ int mod_load( V3_FILE f, xm_struct *xm )
     if( tt[0] == 'C' && tt[1] == 'D' && tt[2] == '8' && tt[3] == '1' ) oldMOD = 0;
     if( tt[0] == 'O' && tt[1] == 'K' && tt[2] == 'T' && tt[3] == 'A' ) oldMOD = 0;
     if( tt[2] == 'C' && tt[3] == 'N' ) oldMOD = 0;
-    if( oldMOD ) prints( "MOD: It's old MOD with 15 samples" );
+    if( oldMOD ) dprint( "MOD: It's old MOD with 15 samples\n" );
     int inst_num = 31;
     if( oldMOD ) inst_num = 15;
     v3_rewind( f );
 
     //Load name:
-    prints( "MOD: Loading name" );
+    dprint( "MOD: Loading name\n" );
     char *name = (char*)song->name;
     v3_read( name, 20, 1, f );
     
     //Load instruments:
-    prints( "MOD: Loading instruments" );
+    dprint( "MOD: Loading instruments\n" );
     int i;
     char sample_name[22];
     long sample_size = 0;
@@ -283,7 +283,7 @@ int mod_load( V3_FILE f, xm_struct *xm )
     long sample_replen = 0;
     for( i = 0; i < inst_num; i++ )
     {
-	prints2( "MOD: instrument ", i );
+	dprint( "MOD: instrument %d\n", i );
 	v3_read( sample_name, 22, 1, f );
 	sample_size = read_int68( f ); sample_size *= 2;
 	sample_finetune = v3_getc( f );
@@ -293,7 +293,7 @@ int mod_load( V3_FILE f, xm_struct *xm )
 	if( sample_replen <= 2 ) sample_replen = 0;
 	if( sample_replen ) sample_type = 1; //forward loop
 	    else sample_type = 0;
-	prints( "MOD: Add new instrument" );
+	dprint( "MOD: Add new instrument\n" );
 	new_instrument( i, sample_name, 1, xm );
 	ins = song->instruments[ i ];
 	ins->finetune = 0;
@@ -302,7 +302,7 @@ int mod_load( V3_FILE f, xm_struct *xm )
 	ins->relative_note = 0;
 	if( sample_size )
 	{
-	    prints( "MOD: New sample" );
+	    dprint( "MOD: New sample\n" );
 	    new_sample( 0, i, "", sample_size, sample_type, xm );
 	    smp = ins->samples[ 0 ];
 	    //save parameters:
@@ -339,7 +339,7 @@ int mod_load( V3_FILE f, xm_struct *xm )
     song->bpm = 125;
     
     //Load patterns:
-    prints( "MOD: Loading patterns" );
+    dprint( "MOD: Loading patterns\n" );
     char *pp = (char*)mem_new( HEAP_STORAGE, 1900, "MOD periods", 0 );   //standart period table
     char *pp2 = (char*)mem_new( HEAP_STORAGE, 1900, "MOD periods2", 0 ); //improved table
     mem_set( pp, 1900, 0 );
@@ -452,10 +452,10 @@ int mod_load( V3_FILE f, xm_struct *xm )
     }
     
     //Load samples data:
-    prints( "MOD: Loading sample data" );
+    dprint( "MOD: Loading sample data\n" );
     for( i = 0; i < inst_num; i ++ )
     {
-	prints2( "MOD: sample ", i );
+	dprint( "MOD: sample %d\n", i );
 	ins = song->instruments[ i ];
 	smp = ins->samples[ 0 ];
 	if( smp )
@@ -481,7 +481,7 @@ int mod_load( V3_FILE f, xm_struct *xm )
 
     song->restart_position = 0;
     
-    prints("****** MOD load OK ******");
+    dprint( "****** MOD load OK ******\n" );
 
     return 1;
 }
@@ -506,7 +506,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
     char name[32]; 
     
 
-    prints( "Loading XM" );
+    dprint( "Loading XM\n" );
     
     //Prepare song:
     clear_song( xm );     //Clear old song
@@ -516,11 +516,11 @@ int xm_load( V3_FILE f, xm_struct *xm )
     char *sptr = (char*)song;
     v3_read(sptr+4,332,1,f); //load header
     song->id_text[0] = 'E'; song->id_text[1] = 'x'; song->id_text[2] = 't'; song->id_text[3] = 'e';
-    prints( "XM: header loaded" );
+    dprint( "XM: header loaded\n" );
 
     //load patterns:
-    prints2( "XM: length = ", song->length );
-    prints2( "XM: patterns = ", song->patterns_num );
+    dprint( "XM: length = %d\n", song->length );
+    dprint( "XM: patterns = %d\n", song->patterns_num );
     for( a = 0; a < song->patterns_num; a++ )
     {
 	a1 = read_long(f); //pattern header length
@@ -531,7 +531,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
 	new_pattern( (uint16)a, (uint16)a1, song->channels, xm );
 
 	//read pattern data:
-	prints( "XM: reading pattern data..." );
+	dprint( "XM: reading pattern data...\n" );
 	pat = song->patterns[ a ];
 	data = pat->pattern_data;
 	a4 = song->channels * a1; //get real pattern size
@@ -557,18 +557,18 @@ int xm_load( V3_FILE f, xm_struct *xm )
     //load instruments:
     for( a = 0; a < song->instruments_num; a++ )
     {
-	prints( " " );
-	prints2( "XM: loading instrument ", a );
+	dprint( "\n" );
+	dprint( "XM: loading instrument %d\n", a );
 	ins_header_size = read_long(f);         //instrument's header size
-	prints2( "XM: ins. header size = ", ins_header_size );
-	prints( "XM: instr. name" );
+	dprint( "XM: ins. header size = %d\n", ins_header_size );
+	dprint( "XM: instr. name\n" );
 	v3_read( name, 22, 1, f );                //instrument name
-	prints2( "XM: instr. type ", v3_getc(f) ); //instrument type (always 0)
+	dprint( "XM: instr. type %d\n", v3_getc(f) ); //instrument type (always 0)
 	num_of_samples = read_int(f);           //number of samples
-	prints2( "XM: number of samples = ", num_of_samples );
+	dprint( "XM: number of samples = %d\n", num_of_samples );
 	
 	//create instrument with NULL samples:
-	prints( "XM: creating instrument with NULL samples" );
+	dprint( "XM: creating instrument with NULL samples\n" );
 	new_instrument( (uint16)a, name, (uint16)num_of_samples, xm );
 	ins = song->instruments[ a ];
 
@@ -581,7 +581,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
 	}
 	
 	//load inst. parameters:
-	prints( "XM: loading instr. parameters" );
+	dprint( "XM: loading instr. parameters\n" );
 	if( ins_header_size >= (29+214) )
 	{
 	    //There is minimal amount of instrument data (29+214 bytes):
@@ -627,11 +627,11 @@ int xm_load( V3_FILE f, xm_struct *xm )
 		read_int( f ); //two empty bytes
 	    }
 	    ins->volume_fadeout = (uint16)a1;
-	    prints2( "XM: smp. header size = ", smp_header_size );
+	    dprint( "XM: smp. header size = %d\n", smp_header_size );
 
-	    prints2( "XM: instrument envelope ", a );
+	    dprint( "XM: instrument envelope %d\n", a );
 	    create_envelope( ins->volume_points, ins->volume_points_num, ins->volume_env );
-	    prints( "XM: panning envelope:" );
+	    dprint( "XM: panning envelope:\n" );
 	    create_envelope( ins->panning_points, ins->panning_points_num, ins->panning_env );
 
 	    //seek for the samples:
@@ -662,7 +662,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
 	    v3_read(name,22,1,f);//sample name
 		
 	    new_sample( (uint16)b, (uint16)a, name, a1, a6, xm );
-	    prints( "XM: new sample is OK" );
+	    dprint( "XM: new sample is OK\n" );
 	    smp = ins->samples[ b ];
 		
 	    //set sample info:
@@ -680,11 +680,11 @@ int xm_load( V3_FILE f, xm_struct *xm )
 	    smp = ins->samples[ b ];
 	    
 	    if(smp->length==0) continue;
-	    prints2( "XM: sample len = ", smp->length );
+	    dprint( "XM: sample len = %d\n", smp->length );
 	    
 	    if( smp->type & 16 )
 	    { //16bit sample:
-		prints( "XM: 16bit sample" );
+		dprint( "XM: 16bit sample\n" );
 		len = smp->length;
 		old_s = 0;
 		s_data = (signed short*) smp->data;
@@ -699,7 +699,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
 		//convert sample info:
 		bytes2frames( smp, xm );
 	    }else{ //8bit sample:
-		prints( "XM: 8bit sample" );
+		dprint( "XM: 8bit sample\n" );
 		len = smp->length;
 		c_old_s = 0;
 		cs_data = (char*) smp->data;
@@ -712,7 +712,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
 		    c_old_s = c_new_s;
 		}
 	    }
-	    prints( "XM: load smp data OK" );
+	    dprint( "XM: load smp data OK\n" );
 	}
     }
 
@@ -727,7 +727,7 @@ int xm_load( V3_FILE f, xm_struct *xm )
     xm->patternticks = xm->patternticks;
     xm->sp = xm->speed;
     
-    prints("****** XM load OK ******");
+    dprint( "****** XM load OK ******\n" );
     
     return 1;
 }
