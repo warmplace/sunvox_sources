@@ -26,7 +26,7 @@
     if( per >= 0 ) \
 	res = ( data->linear_tab[ per % 768 ] >> ( per / 768 ) ); \
     else \
-	res = ( data->linear_tab[ (2796202+per) % 768 ] >> ( per / 768 ) ); /*if period is negative value*/ \
+	res = ( data->linear_tab[ (7680*4+per) % 768 ] << -( ( (7680*4+per) / 768 ) - (7680*4)/768 ) ); /*if period is negative value*/ \
 }
 #define GET_DELTA(f,resh,resl)   \
 { \
@@ -174,6 +174,8 @@ struct instrument
     sample  *samples[16];
 };
 
+#define LOAD_XI_FLAG_SET_MAX_VOLUME	1
+
 void refresh_instrument_envelope( uint16 *src, uint16 points, uint16 *dest );
 void refresh_instrument_envelopes( instrument *ins );
 void make_default_envelopes( instrument *ins );
@@ -182,8 +184,8 @@ void new_instrument( char *name, instrument *ins );
 void new_sample( long length, sample *smp );
 void save_wav_sample( char *filename, int synth_id, void *net, int sample_num );
 void load_wav_instrument_or_sample( V3_FILE f, char *name, int synth_id, void *net, int sample_num );
-void load_xi_instrument( V3_FILE f, int synth_id, void *net );
-void load_instrument_or_sample( char *filename, int synth_id, void *net, int sample_num );
+void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net );
+void load_instrument_or_sample( char *filename, int flags, int synth_id, void *net, int sample_num );
 void envelope( 
     gen_channel *cptr, 
     SYNTH_DATA *data,
@@ -196,7 +198,7 @@ void envelope(
 //## GUI (Visual)
 //###########################################################
 //###########################################################
-#include "psynths_sampler_gui.h"
+#include "../../sunvox/main/psynths_sampler_gui.h"
 //###########################################################
 //###########################################################
 //## End of GUI
@@ -470,7 +472,7 @@ void load_wav_instrument_or_sample( V3_FILE f, char *name, int synth_id, void *n
     }
 }
 
-void load_xi_instrument( V3_FILE f, int synth_id, void *net )
+void load_xi_instrument( V3_FILE f, int flags, int synth_id, void *net )
 {
     //Create instrument structure:
     psynth_new_chunk( synth_id, CHUNK_INS, sizeof( instrument ), 0, net );
@@ -519,7 +521,8 @@ void load_xi_instrument( V3_FILE f, int synth_id, void *net )
 	    psynth_new_chunk( synth_id, CHUNK_SMP( s ), sizeof( sample ), 0, net );
 	    smp = (sample*)psynth_get_chunk( synth_id, CHUNK_SMP( s ), net );
 	    v3_read( smp, 40, 1, f ); //Load sample info
-	    smp->volume = 64;
+	    if( flags & LOAD_XI_FLAG_SET_MAX_VOLUME )
+		smp->volume = 64;
 	    smp->data = 0;
 	    if( smp->length )
 	    {
@@ -577,7 +580,7 @@ void load_xi_instrument( V3_FILE f, int synth_id, void *net )
 }
 
 //if sample_num < 0 then load sample as new instrument
-void load_instrument_or_sample( char *filename, int synth_id, void *net, int sample_num )
+void load_instrument_or_sample( char *filename, int flags, int synth_id, void *net, int sample_num )
 {
     int instr_created = 0;
     char temp[ 8 ];
@@ -594,7 +597,7 @@ void load_instrument_or_sample( char *filename, int synth_id, void *net, int sam
 	    //Clear all info about previous instrument:
 	    psynth_clear_chunks( synth_id, net );
 
-	    load_xi_instrument( f, synth_id, net );
+	    load_xi_instrument( f, flags, synth_id, net );
 	    instr_created = 1;
 	}
 	if( temp[0] == 'R' && temp[1] == 'I' && temp[2] == 'F' )
@@ -1170,8 +1173,9 @@ render_finished:
 		if( ins == 0 ) break;
 		int note_num = pnet->note;
 		if( note_num < 0 ) note_num = 0;
-		if( note_num >= 96 ) note_num = 95;
-		int smp_num = ins->sample_number[ note_num ];
+		int smp_note_num = note_num;
+		if( smp_note_num >= 96 ) smp_note_num = 95;
+		int smp_num = ins->sample_number[ smp_note_num ];
 		sample *smp;
 		if( ins->samples_num && smp_num < ins->samples_num )
 		{
@@ -1207,7 +1211,7 @@ render_finished:
 		//Set note:
 		note_num += smp->relative_note;
 		note_num += ins->relative_note;
-		if( note_num > 119 ) note_num = 119;
+		//if( note_num > 119 ) note_num = 119;
 		if( note_num < 0 ) note_num = 0;
 		long period = 7680 - (note_num*64) - (smp->finetune>>1) - (ins->finetune>>1) - (finetune>>2);
 		int freq;

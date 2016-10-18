@@ -9,7 +9,7 @@
 
 #include <windows.h>
 #include <wingdi.h>
-#include "wince_res.h" //(IDI_ICON1) Must be defined in your project
+#include "win_res.h" //(IDI_ICON1) Must be defined in your project
 
 WCHAR *className = L"SunDogEngine";
 char *windowName = "SunDogEngine_winCE";
@@ -87,8 +87,8 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
 
 #ifdef GDI
     wm->gdi_bitmap_info[ 0 ] = 888;
-    if( get_option( OPT_SCREENX ) != -1 ) xsize = get_option( OPT_SCREENX );
-    if( get_option( OPT_SCREENY ) != -1 ) ysize = get_option( OPT_SCREENY );
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
     if( xsize > GetSystemMetrics( SM_CXSCREEN ) ) xsize = GetSystemMetrics( SM_CXSCREEN );
     if( ysize > GetSystemMetrics( SM_CYSCREEN ) - 64 ) ysize = GetSystemMetrics( SM_CYSCREEN ) - 64;
 #endif

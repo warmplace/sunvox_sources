@@ -64,6 +64,33 @@ int sundog_mutex_destroy( sundog_mutex *mutex );
 int sundog_mutex_lock( sundog_mutex *mutex );
 int sundog_mutex_unlock( sundog_mutex *mutex );
 
+//PROFILES:
+
+#define KEY_SCREENX		"width"
+#define KEY_SCREENY		"height"
+#define KEY_SCREENFLIP		"flip"
+#define KEY_FULLSCREEN		"fullscreen"
+#define KEY_SOUNDBUFFER		"buffer"
+#define KEY_AUDIODEVICE		"audiodevice"
+#define KEY_FREQ		"frequency"
+#define KEY_WINDOWNAME		"windowname"
+#define KEY_NOBORDER		"noborder"
+
+struct profile_data
+{
+    char **keys;
+    char **values;
+    int num;
+};
+
+void profile_new( profile_data *p );
+void profile_resize( int new_num, profile_data *p );
+int profile_add_value( char *key, char *value, profile_data *p );
+int profile_get_int_value( char *key, profile_data *p );
+char* profile_get_str_value( char *key, profile_data *p );
+void profile_close( profile_data *p );
+void profile_load( char *filename, profile_data *p );
+
 //STRINGS:
 
 void int_to_string( int value, char *str );

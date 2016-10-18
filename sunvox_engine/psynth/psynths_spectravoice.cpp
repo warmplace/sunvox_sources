@@ -23,7 +23,13 @@
 #define MAX_HARMONICS	16
 #define MAX_SAMPLES	1
 
-#define GET_FREQ(per)  ( data->linear_tab[ per % 768 ] >> ( per / 768 ) )
+#define GET_FREQ(res,per)  \
+{ \
+    if( per >= 0 ) \
+	res = ( data->linear_tab[ per % 768 ] >> ( per / 768 ) ); \
+    else \
+	res = ( data->linear_tab[ (7680*4+per) % 768 ] << -( ( (7680*4+per) / 768 ) - (7680*4)/768 ) ); /*if period is negative value*/ \
+}
 #define GET_DELTA(f,resh,resl)   \
 { \
     resh = f / pnet->sampling_freq; \
@@ -892,7 +898,8 @@ int SYNTH_HANDLER(
 		}
 
 		ulong delta_h, delta_l;
-		int freq = GET_FREQ( pnet->period_ptr / 4 );
+		int freq;
+		GET_FREQ( freq, pnet->period_ptr / 4 );
 		GET_DELTA( freq, delta_h, delta_l );
 
 		c = data->search_ptr;
@@ -919,7 +926,8 @@ int SYNTH_HANDLER(
 		if( data->channels[ c ].id == pnet->channel_id )
 		{
 		    ulong delta_h, delta_l;
-		    int freq = GET_FREQ( pnet->period_ptr / 4 );
+		    int freq;
+		    GET_FREQ( freq, pnet->period_ptr / 4 );
 		    GET_DELTA( freq, delta_h, delta_l );
 
 		    data->channels[ c ].delta_h = delta_h;

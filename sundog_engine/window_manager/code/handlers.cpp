@@ -10,6 +10,8 @@
 #include "../../main/user_code.h"
 #include "../wmanager.h"
 
+#define PUSHED_COLOR( orig ) blend( orig, wm->black, 44 )
+
 int window_handler_check_data( sundog_event *evt, window_manager *wm )
 {
     if( evt->event_type != EVT_GETDATASIZE )
@@ -92,7 +94,7 @@ int divider_handler( int type, sundog_event *evt, window_manager *wm )
 		if( data->bind && type == 1 )
 		    data->start_wy = data->bind->y;
 		data->pushed = 1;
-		win->color = blend( data->color, wm->black, 64 );
+		win->color = PUSHED_COLOR( data->color );
 		draw_window( win, wm );
 		retval = 1;
 	    }
@@ -415,7 +417,7 @@ int text_handler( sundog_event *evt, window_manager *wm )
 		if( data->text[ p ] == 0 ) break;
 	    }
 	    //Draw border:
-	    win_draw_frame3d( win, 0, 0, win->xsize, win->ysize, col, 0, wm );
+	    win_draw_frame( win, 0, 0, win->xsize, win->ysize, blend( col, win->parent->color, 128 ), wm );
 	    retval = 1;
 	    win_draw_unlock( win, wm );
 	    break;
@@ -459,7 +461,7 @@ int CREATE_BITMAP_BUTTON_YSIZE = 0;
 char *CREATE_BUTTON_WITH_TEXT_MENU = 0;
 int CREATE_BUTTON_WITH_LEVELS = 0;
 int CREATE_BUTTON_WITH_AUTOREPEAT = 0;
-#define PUSHED_COLOR( orig ) blend( orig, wm->black, 64 )
+int CREATE_FLAT_BUTTON = 0;
 
 struct button_data
 {
@@ -475,6 +477,7 @@ struct button_data
     int timer;
     int pushed;
     int pen_inside;
+    int flat;
 
     WINDOWPTR prev_focus_win;
 };
@@ -516,6 +519,7 @@ int button_handler( sundog_event *evt, window_manager *wm )
 	    data->levels = CREATE_BUTTON_WITH_LEVELS;
 	    data->save_level_to = SAVE_LEVEL_TO;
 	    data->autorepeat = CREATE_BUTTON_WITH_AUTOREPEAT;
+	    data->flat = CREATE_FLAT_BUTTON;
 	    data->timer = -1;
 	    data->pushed = 0;
 	    data->pushed_bmp = 0;
@@ -553,6 +557,7 @@ int button_handler( sundog_event *evt, window_manager *wm )
 	    CREATE_BUTTON_WITH_TEXT_MENU = 0;
 	    CREATE_BUTTON_WITH_LEVELS = 0;
 	    CREATE_BUTTON_WITH_AUTOREPEAT = 0;
+	    CREATE_FLAT_BUTTON = 0;
 	    retval = 1;
 	    break;
 	case EVT_BEFORECLOSE:
@@ -605,13 +610,7 @@ int button_handler( sundog_event *evt, window_manager *wm )
 			if( data->text_menu )
 			{
 			    //Show popup with text menu:
-			    win->action_result = popup_menu( win->name, data->text_menu, 0, win->screen_x, win->screen_y, wm->colors[ 12 ], wm );
-			}
-			if( data->levels )
-			{
-			    //Show popup with levels:
-			    SAVE_LEVEL_TO = data->save_level_to;
-			    win->action_result = popup_menu( win->name, 0, data->levels, win->screen_x, win->screen_y, wm->colors[ 12 ], wm );
+			    win->action_result = popup_menu( win->name, data->text_menu, 0, win->screen_x, win->screen_y, wm->menu_color, wm );
 			}
 		    }
 		    data->pushed = 0;
@@ -720,7 +719,14 @@ int button_handler( sundog_event *evt, window_manager *wm )
 		}
 	    }
 	    //Draw border:
-	    win_draw_frame3d( win, 0, 0, win->xsize, win->ysize, col, 1 | ( 2 << 8 ), wm );
+	    if( data->flat )
+	    {
+		win_draw_frame( win, 0, 0, win->xsize, win->ysize, col, wm );
+	    }
+	    else
+	    {
+		win_draw_frame3d( win, 0, 0, win->xsize, win->ysize, col, 1 | ( 2 << 8 ), wm );
+	    }
 	    retval = 1;
 	    win_draw_unlock( win, wm );
 	    break;
@@ -776,11 +782,12 @@ int list_handler( sundog_event *evt, window_manager *wm )
 	    data->prev_selected = -999;
 	    //SCROLLBAR:
 	    CREATE_VERTICAL_SCROLLBAR = 1;
+	    CREATE_FLAT_SCROLLBAR = 1;
 	    //data->scrollbar = new_window( "scroll", 1, 1, 1, 1, wm->colors[ 10 ], win, scrollbar_handler, wm );
 	    data->scrollbar = new_window( "scroll", 1, 1, 1, 1, win->color, win, scrollbar_handler, wm );
 	    set_window_controller( data->scrollbar, 0, wm, CPERC, 100, CSUB, 1, CEND );
 	    set_window_controller( data->scrollbar, 1, wm, 1, CEND );
-	    set_window_controller( data->scrollbar, 2, wm, CPERC, 100, CSUB, SCROLLBAR_SIZE + 1, CEND );
+	    set_window_controller( data->scrollbar, 2, wm, CPERC, 100, CSUB, SCROLLBAR_SIZE, CEND );
 	    set_window_controller( data->scrollbar, 3, wm, CPERC, 100, CSUB, 1, CEND );
 	    set_handler( data->scrollbar, list_scrollbar_handler, data, wm );
 	    data->numbered = CREATE_NUMBERED_LIST;
@@ -825,6 +832,13 @@ int list_handler( sundog_event *evt, window_manager *wm )
 		if( win->action_handler )
 		    win->action_handler( win->handler_data, win, wm );
 	    }
+	    retval = 1;
+	    break;
+	case EVT_MOUSEDOUBLECLICK:
+	    data->last_action = 2;
+	    win->action_result = data->list->selected_item;
+	    if( win->action_handler )
+		win->action_handler( win->handler_data, win, wm );
 	    retval = 1;
 	    break;
 	case EVT_MOUSEBUTTONDOWN:
@@ -894,11 +908,11 @@ int list_handler( sundog_event *evt, window_manager *wm )
 	    for( i = data->list->start_item; i < data->list->items_num; i++ )
 	    {
 		COLOR fc = wm->black;
-		if( list_get_attr( i, data->list ) == 1 ) fc = blend( 0, wm->white, 128 );
+		if( list_get_attr( i, data->list ) == 1 ) fc = blend( wm->black, win->color, 130 );
 		if( data->list->selected_item == i )
 		{
 		    fc = COLORMASK;
-		    col2 = blend( col, wm->black, 64 );
+		    col2 = blend( col, wm->black, 128 );
 		}
 		else
 		    col2 = col;
@@ -927,7 +941,7 @@ int list_handler( sundog_event *evt, window_manager *wm )
 	    if( yp < win->ysize - 1 )
 		win_draw_box( win, 1, yp, win->xsize - 2, win->ysize - yp - 1, win->color, wm );
 	    //Draw border:
-	    win_draw_frame3d( win, 0, 0, win->xsize, win->ysize, col, 0, wm );
+	    win_draw_frame( win, 0, 0, win->xsize, win->ysize, blend( col, win->parent->color, 128 ), wm );
 	    retval = 1;
 	    win_draw_unlock( win, wm );
 	    break;
@@ -991,6 +1005,7 @@ void list_select_item( WINDOWPTR win, int item_num, window_manager *wm )
 int CREATE_VERTICAL_SCROLLBAR = 0;
 int CREATE_REVERSE_SCROLLBAR = 0;
 int CREATE_COMPACT_SCROLLBAR = 0;
+int CREATE_FLAT_SCROLLBAR = 0;
 char text_up[ 2 ] = { 30, 0 };
 char text_down[ 2 ] = { 31, 0 };
 char text_left[ 2 ] = { 17, 0 };
@@ -1004,6 +1019,7 @@ struct scrollbar_data
     int vert;
     int rev;
     int compact_mode;
+    int flat;
     char *name;
     int max_value;
     int page_size;
@@ -1062,12 +1078,15 @@ int scrollbar_handler( sundog_event *evt, window_manager *wm )
 	    break;
 	case EVT_AFTERCREATE:
 	    data->this_window = win;
+	    data->flat = CREATE_FLAT_SCROLLBAR;
 	    if( CREATE_VERTICAL_SCROLLBAR )
 	    {
 		data->vert = 1;
 		CREATE_BUTTON_WITH_AUTOREPEAT = 1;
+		CREATE_FLAT_BUTTON = data->flat;
 		data->but1 = new_window( text_up, 0, 0, win->xsize, button_size, win->color, win, button_handler, wm );
 		CREATE_BUTTON_WITH_AUTOREPEAT = 1;
+		CREATE_FLAT_BUTTON = data->flat;
 		data->but2 = new_window( text_down, 0, win->ysize - button_size, win->xsize, button_size, win->color, win, button_handler, wm );
 		set_window_controller( data->but1, 0, wm, CPERC, 0, CEND );
 		set_window_controller( data->but1, 1, wm, CPERC, 0, CEND );
@@ -1092,8 +1111,10 @@ int scrollbar_handler( sundog_event *evt, window_manager *wm )
 	    {
 		data->vert = 0;
 		CREATE_BUTTON_WITH_AUTOREPEAT = 1;
+		CREATE_FLAT_BUTTON = data->flat;
 		data->but1 = new_window( text_right, 0, 0, button_size, win->ysize, win->color, win, button_handler, wm );
 		CREATE_BUTTON_WITH_AUTOREPEAT = 1;
+		CREATE_FLAT_BUTTON = data->flat;
 		data->but2 = new_window( text_left, win->xsize - button_size, 0, button_size, win->ysize, win->color, win, button_handler, wm );
 		set_window_controller( data->but1, 0, wm, CPERC, 100, CEND );
 		set_window_controller( data->but1, 1, wm, CPERC, 0, CEND );
@@ -1126,6 +1147,7 @@ int scrollbar_handler( sundog_event *evt, window_manager *wm )
 	    CREATE_VERTICAL_SCROLLBAR = 0;
 	    CREATE_REVERSE_SCROLLBAR = 0;
 	    CREATE_COMPACT_SCROLLBAR = 0;
+	    CREATE_FLAT_SCROLLBAR = 0;
 	    if( data->compact_mode )
 	    {
 		wbd_init( win, win->xsize, win->ysize, wm );
@@ -1302,23 +1324,47 @@ int scrollbar_handler( sundog_event *evt, window_manager *wm )
 			}
 		    }
 
-		    COLOR lcol = blend( win->color, wm->white, 64 );
-		    COLOR dcol = blend( win->color, wm->black, 64 );
-		    COLOR bar_color = win->color;
-		    if( data->bar_selected ) bar_color = PUSHED_COLOR( bar_color );
-		    if( data->vert )
+		    COLOR bar_color;
+		    COLOR bg_color;
+		    if( data->flat == 0 )
 		    {
-			win_draw_box( win, 0, button_size, win->xsize, button_size + data->pos, blend( win->color, wm->black, 40 ), wm );
-			win_draw_box( win, 1, button_size + data->pos + 1, win->xsize - 2, data->bar_size - 2, bar_color, wm );
-			win_draw_frame3d( win, 0, button_size + data->pos, win->xsize, data->bar_size, bar_color, 1 + ( 2<<8 ), wm );
-			win_draw_box( win, 0, button_size + data->pos + data->bar_size, win->xsize, working_area - ( data->pos + data->bar_size ), blend( win->color, wm->black, 40 ), wm );
+			bar_color = win->color;
+			bg_color = wm->scroll_background_color;
+			if( data->bar_selected ) bar_color = PUSHED_COLOR( bar_color );
 		    }
 		    else
 		    {
-			win_draw_box( win, button_size, 0, button_size + data->pos, win->ysize, blend( win->color, wm->black, 40 ), wm );
-			win_draw_box( win, button_size + data->pos + 1, 1, data->bar_size - 2, win->ysize - 2, bar_color, wm );
-			win_draw_frame3d( win, button_size + data->pos, 0, data->bar_size, win->ysize, bar_color, 1 + ( 2<<8 ), wm );
-			win_draw_box( win, button_size + data->pos + data->bar_size, 0, working_area - ( data->pos + data->bar_size ), win->ysize, blend( win->color, wm->black, 40 ), wm );
+			bar_color = blend( win->color, wm->black, 40 );
+			bg_color = win->color;
+			if( data->bar_selected ) bar_color = PUSHED_COLOR( bar_color );
+		    }
+		    if( data->vert )
+		    {
+			win_draw_box( win, 0, button_size, win->xsize, button_size + data->pos, bg_color, wm );
+			win_draw_box( win, 0, button_size + data->pos + data->bar_size, win->xsize, working_area - ( data->pos + data->bar_size ), bg_color, wm );
+			if( data->flat == 0 )
+			{
+			    win_draw_box( win, 1, button_size + data->pos + 1, win->xsize - 2, data->bar_size - 2, bar_color, wm );
+			    win_draw_frame3d( win, 0, button_size + data->pos, win->xsize, data->bar_size, bar_color, 1 + ( 2<<8 ), wm );
+			}
+			else
+			{
+			    win_draw_box( win, 0, button_size + data->pos, win->xsize, data->bar_size, bar_color, wm );
+			}
+		    }
+		    else
+		    {
+			win_draw_box( win, button_size, 0, button_size + data->pos, win->ysize, bg_color, wm );
+			win_draw_box( win, button_size + data->pos + data->bar_size, 0, working_area - ( data->pos + data->bar_size ), win->ysize, bg_color, wm );
+			if( data->flat == 0 )
+			{
+			    win_draw_box( win, button_size + data->pos + 1, 1, data->bar_size - 2, win->ysize - 2, bar_color, wm );
+			    win_draw_frame3d( win, button_size + data->pos, 0, data->bar_size, win->ysize, bar_color, 1 + ( 2<<8 ), wm );
+			}
+			else
+			{
+			    win_draw_box( win, button_size + data->pos, 0, data->bar_size, win->ysize, bar_color, wm );
+			}
 		    }
 		}
 		else
@@ -1483,16 +1529,16 @@ int  kbd_texts1[] = { 1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, 
 char *kbd_text2[] = { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", " ", "ENTER", "#" };
 int    kbd_key2[] = { 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', ' ', KEY_ENTER };
 #ifdef KBD_RUS
-char *kbd_text2r[] ={ "É", "Ö", "Ó", "Ê", "Å", "Í", "Ã", "Ø", "Ù", "Ç", "Õ", "ENTER", "#" };
-int    kbd_key2r[] ={ 'é', 'ö', 'ó', 'ê', 'å', 'í', 'ã', 'ø', 'ù', 'ç', 'õ', KEY_ENTER };
+char *kbd_text2r[] ={ "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ENTER", "#" };
+int    kbd_key2r[] ={ 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', KEY_ENTER };
 #endif
 int  kbd_texts2[] = { 1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   5 };
 
 #ifdef KBD_RUS
 char *kbd_text3[] = { "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", " ", "ENG/RUS", "#" };
 int    kbd_key3[] = { 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', ' ', 1 };
-char *kbd_text3r[] ={ "Ô", "Û", "Â", "À", "Ï", "Ð", "Î", "Ë", "Ä", "Æ", "Ý", "ENG/RUS", "#" };
-int    kbd_key3r[] ={ 'ô', 'û', 'â', 'à', 'ï', 'ð', 'î', 'ë', 'ä', 'æ', 'ý', 1 };
+char *kbd_text3r[] ={ "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ENG/RUS", "#" };
+int    kbd_key3r[] ={ 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 1 };
 #else
 char *kbd_text3[] = { "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", " ", "HIDE", "#" };
 int    kbd_key3[] = { 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', ' ', 2 };
@@ -1502,8 +1548,8 @@ int  kbd_texts3[] = { 1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   5 }
 char *kbd_text4[] = { "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", " ", "SPACE", "#" };
 int    kbd_key4[] = { 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', ' ', ' ' };
 #ifdef KBD_RUS
-char *kbd_text4r[] ={ "ß", "×", "Ñ", "Ì", "È", "Ò", "Ü", "Á", "Þ", "Ú", " ", "SPACE", "#" };
-int    kbd_key4r[] ={ 'ÿ', '÷', 'ñ', 'ì', 'è', 'ò', 'ü', 'á', 'þ', 'ú', ' ', ' ' };
+char *kbd_text4r[] ={ "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", "ï¿½", " ", "SPACE", "#" };
+int    kbd_key4r[] ={ 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', 'ï¿½', ' ', ' ' };
 #endif
 int  kbd_texts4[] = { 1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   5 };
 
@@ -1656,6 +1702,7 @@ struct files_data
     int prop_cur_file[ 32 ];
     int	prop_cur_disk;
     char *resulted_filename;
+    int first_time;
 };
 
 int files_ok_button_handler( void *user_data, WINDOWPTR win, window_manager *wm );
@@ -1762,12 +1809,16 @@ int files_disk_button_handler( void *user_data, WINDOWPTR win, window_manager *w
     {
 	for( int a = 0; a < disks; a++ )
 	{
-	    data->disk_buttons[ a ]->color = wm->colors[ 12 ];
+	    data->disk_buttons[ a ]->color = wm->button_color;
 	    if( data->disk_buttons[ a ] == win )
 		data->prop_cur_disk = a;
 	}
 	//Show selected disk:
-	data->disk_buttons[ data->prop_cur_disk ]->color = wm->colors[ 15 ];
+#ifdef GRAYSCALE
+        data->disk_buttons[ data->prop_cur_disk ]->color = wm->white;
+#else
+	data->disk_buttons[ data->prop_cur_disk ]->color = wm->selection_color;
+#endif
     }
 
     //Set new filelist:
@@ -1926,7 +1977,6 @@ void files_refresh_list( WINDOWPTR win, window_manager *wm )
     list_sort( ldata );
 
     //Set file num:
-    //list_set_selected_num( data->prop_cur_file[ data->prop_cur_disk ], ldata );
     list_select_item( data->files, data->prop_cur_file[ data->prop_cur_disk ], wm );
 }
 
@@ -2086,14 +2136,15 @@ int files_handler( sundog_event *evt, window_manager *wm )
 	    data->mask = FILES_MASK;
 	    data->resulted_filename = FILES_RESULTED_FILENAME;
 	    data->this_window = win;
+	    data->first_time = 1;
 
 	    //DISKS:
 	    for( a = 0; a < 32; a++ ) data->disk_buttons[ a ] = 0;
 	    get_disks();
 	    data->go_up_button = new_window( 
 		"..", 
-		2, 2, but_xsize, but_ysize - 4, 
-		wm->colors[ 12 ],
+		INTERELEMENT_SPACE, INTERELEMENT_SPACE, but_xsize, but_ysize - 4, 
+		wm->button_color,
 		win,
 		button_handler, 
 		wm );
@@ -2102,8 +2153,8 @@ int files_handler( sundog_event *evt, window_manager *wm )
 	    {
 		data->disk_buttons[ a ] = new_window( 
 		    get_disk_name( a ), 
-		    2 + ( but_xsize + 4 ) * ( a + 1 ), 2, but_xsize, but_ysize - 4, 
-		    wm->colors[ 12 ],
+		    INTERELEMENT_SPACE + ( but_xsize + INTERELEMENT_SPACE ) * ( a + 1 ), INTERELEMENT_SPACE, but_xsize, but_ysize - 4, 
+		    wm->button_color,
 		    win,
 		    button_handler, 
 		    wm );
@@ -2112,61 +2163,67 @@ int files_handler( sundog_event *evt, window_manager *wm )
 
 	    //DIRECTORY:
 	    a = string_size( "#####", wm ) + 4;
-	    b = but_ysize;
-	    new_window( "Path:", 2, b, a, char_y_size(wm)+4, 0, win, label_handler, wm );
-	    data->path = new_window( "pathn", 0, 0, 1, 1, wm->colors[ 12 ], win, text_handler, wm );
-	    set_window_controller( data->path, 0, wm, 2 + a, CEND );
+	    b = INTERELEMENT_SPACE + but_ysize - 4 + INTERELEMENT_SPACE;
+	    new_window( "Path:", INTERELEMENT_SPACE, b, a, char_y_size( wm ) + 4, 0, win, label_handler, wm );
+	    data->path = new_window( "pathn", 0, 0, 1, 1, wm->text_background, win, text_handler, wm );
+	    set_window_controller( data->path, 0, wm, INTERELEMENT_SPACE + a, CEND );
 	    set_window_controller( data->path, 1, wm, b, CEND );
-	    set_window_controller( data->path, 2, wm, CPERC, 100, CEND );
+	    set_window_controller( data->path, 2, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
 	    set_window_controller( data->path, 3, wm, b + char_y_size( wm ) + 4, CEND );
 
 	    //FILENAME:
-	    b += char_y_size( wm ) + 4 + 2;
-	    new_window( "Name:", 2, b, string_size("Name:",wm)+4, char_y_size(wm)+4, 0, win, label_handler, wm );
-	    data->name = new_window( "namen", 0, 0, 1, 1, wm->colors[ 12 ], win, text_handler, wm );
+	    b += char_y_size( wm ) + 4 + INTERELEMENT_SPACE;
+	    new_window( "Name:", INTERELEMENT_SPACE, b, string_size( "Name:" , wm ) + 4, char_y_size( wm ) + 4, 0, win, label_handler, wm );
+	    data->name = new_window( "namen", 0, 0, 1, 1, wm->text_background, win, text_handler, wm );
 	    set_handler( data->name, files_name_handler, data, wm );
-	    set_window_controller( data->name, 0, wm, 2 + a, CEND );
+	    set_window_controller( data->name, 0, wm, INTERELEMENT_SPACE + a, CEND );
 	    set_window_controller( data->name, 1, wm, b, CEND );
-	    set_window_controller( data->name, 2, wm, CPERC, 100, CEND );
+	    set_window_controller( data->name, 2, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
 	    set_window_controller( data->name, 3, wm, b + char_y_size( wm ) + 4, CEND );
 
 	    //FILES:
-	    b += char_y_size( wm ) + 4 + 3;
-	    data->files = new_window( "files", 0, b, 100, 100, wm->colors[ 12 ], win, list_handler, wm );
+	    b += char_y_size( wm ) + 4 + INTERELEMENT_SPACE;
+	    data->files = new_window( "files", 0, b, 100, 100, wm->list_background, win, list_handler, wm );
 	    set_handler( data->files, files_list_handler, data, wm );
-	    set_window_controller( data->files, 0, wm, CPERC, 0, CADD, 2, CEND );
+	    set_window_controller( data->files, 0, wm, CPERC, 0, CADD, INTERELEMENT_SPACE, CEND );
 	    set_window_controller( data->files, 1, wm, b, CEND );
-	    set_window_controller( data->files, 2, wm, CPERC, 100, CSUB, 2, CEND );
-	    set_window_controller( data->files, 3, wm, CPERC, 100, CSUB, but_ysize + 6, CEND );
+	    set_window_controller( data->files, 2, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
+	    set_window_controller( data->files, 3, wm, CPERC, 100, CSUB, but_ysize + INTERELEMENT_SPACE * 2, CEND );
 
 	    //BUTTONS:
-	    data->ok_button = new_window( "OK", 0, 0, 1, 1, wm->colors[ 12 ], win, button_handler, wm );
-	    data->cancel_button = new_window( "Cancel", 0, 0, 1, 1, wm->colors[ 12 ], win, button_handler, wm );
+	    data->ok_button = new_window( "OK", 0, 0, 1, 1, wm->button_color, win, button_handler, wm );
+	    data->cancel_button = new_window( "Cancel", 0, 0, 1, 1, wm->button_color, win, button_handler, wm );
 	    set_handler( data->ok_button, files_ok_button_handler, data, wm );
 	    set_handler( data->cancel_button, files_cancel_button_handler, data, wm );
-	    set_window_controller( data->ok_button, 0, wm, 2, CEND );
-	    set_window_controller( data->ok_button, 1, wm, CPERC, 100, CSUB, 2, CEND );
-	    set_window_controller( data->ok_button, 2, wm, 2 + BUTTON_XSIZE( wm ), CEND );
-	    set_window_controller( data->ok_button, 3, wm, CPERC, 100, CSUB, but_ysize + 2, CEND );
-	    set_window_controller( data->cancel_button, 0, wm, 2 + BUTTON_XSIZE( wm ) + 1, CEND );
-	    set_window_controller( data->cancel_button, 1, wm, CPERC, 100, CSUB, 2, CEND );
-	    set_window_controller( data->cancel_button, 2, wm, 2 + BUTTON_XSIZE( wm ) + 1 + BUTTON_XSIZE( wm ), CEND );
-	    set_window_controller( data->cancel_button, 3, wm, CPERC, 100, CSUB, but_ysize + 2, CEND );
+	    set_window_controller( data->ok_button, 0, wm, INTERELEMENT_SPACE, CEND );
+	    set_window_controller( data->ok_button, 1, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
+	    set_window_controller( data->ok_button, 2, wm, INTERELEMENT_SPACE + BUTTON_XSIZE( wm ), CEND );
+	    set_window_controller( data->ok_button, 3, wm, CPERC, 100, CSUB, but_ysize + INTERELEMENT_SPACE, CEND );
+	    set_window_controller( data->cancel_button, 0, wm, INTERELEMENT_SPACE + BUTTON_XSIZE( wm ) + 1, CEND );
+	    set_window_controller( data->cancel_button, 1, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
+	    set_window_controller( data->cancel_button, 2, wm, INTERELEMENT_SPACE + BUTTON_XSIZE( wm ) + 1 + BUTTON_XSIZE( wm ), CEND );
+	    set_window_controller( data->cancel_button, 3, wm, CPERC, 100, CSUB, but_ysize + INTERELEMENT_SPACE, CEND );
 
 	    //LOAD LAST PROPERTIES:
+	    recalc_regions( wm ); //for getting calculated size of file's list
     	    files_load_props( win, wm );
 	    if( data->prop_path[ data->prop_cur_disk ] )
 		text_set_text( data->path, data->prop_path[ data->prop_cur_disk ], wm );
 	    if( data->prop_cur_file >= 0 )
 	    {
 		list_data *ldata = list_get_data( data->files, wm );
-		char *item = list_get_item( list_get_selected_num( ldata ), ldata );
+		char *item = list_get_item( list_get_selected_num( ldata ), ldata );//Set file num:
+		list_select_item( data->files, data->prop_cur_file[ data->prop_cur_disk ], wm );
 		if( item ) 
 		    text_set_text( data->name, item, wm );
 	    }
 
 	    //SHOW CURRENT DISK:
-	    data->disk_buttons[ data->prop_cur_disk ]->color = wm->colors[ 15 ];
+#ifdef GRAYSCALE
+	    data->disk_buttons[ data->prop_cur_disk ]->color = wm->white;
+#else
+	    data->disk_buttons[ data->prop_cur_disk ]->color = wm->selection_color;
+#endif
 
 	    //SET FOCUS:
 	    set_focus_win( data->files, wm );
@@ -2186,6 +2243,12 @@ int files_handler( sundog_event *evt, window_manager *wm )
 	case EVT_DRAW:
 	    win_draw_lock( win, wm );
 	    win_draw_box( win, 0, 0, win->xsize, win->ysize, win->color, wm );
+	    if( data->first_time )
+	    {
+		//Set file num:
+		list_select_item( data->files, data->prop_cur_file[ data->prop_cur_disk ], wm );
+		data->first_time = 0;
+	    }
 	    win_draw_unlock( win, wm );
 	    retval = 1;
 	    break;
@@ -2248,20 +2311,20 @@ int dialog_handler( sundog_event *evt, window_manager *wm )
 		data->this_window = win;
 		data->text = DIALOG_TEXT;
 		data->result = DIALOG_RESULT;
-		WINDOWPTR w_ok = new_window( DIALOG_OK_TEXT, 2, win->ysize - but_ysize - 6, but_xsize, but_ysize + 4, wm->colors[ 12 ], win, button_handler, wm );
+		WINDOWPTR w_ok = new_window( DIALOG_OK_TEXT, 0, 0, 10, 10, wm->button_color, win, button_handler, wm );
 		set_handler( w_ok, dialog_ok_button_handler, data, wm );
-		set_window_controller( w_ok, 0, wm, 2, CEND );
-		set_window_controller( w_ok, 1, wm, CPERC, 100, CSUB, 2, CEND );
-		set_window_controller( w_ok, 2, wm, 2 + but_xsize, CEND );
-		set_window_controller( w_ok, 3, wm, CPERC, 100, CSUB, but_ysize + 2, CEND );
+		set_window_controller( w_ok, 0, wm, INTERELEMENT_SPACE, CEND );
+		set_window_controller( w_ok, 1, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
+		set_window_controller( w_ok, 2, wm, INTERELEMENT_SPACE + but_xsize, CEND );
+		set_window_controller( w_ok, 3, wm, CPERC, 100, CSUB, but_ysize + INTERELEMENT_SPACE, CEND );
 		if( DIALOG_CANCEL_TEXT )
 		{
-		    WINDOWPTR w_cancel = new_window( DIALOG_CANCEL_TEXT, but_xsize + 1, win->ysize - but_ysize - 6, but_xsize, but_ysize + 4, wm->colors[ 12 ], win, button_handler, wm );
+		    WINDOWPTR w_cancel = new_window( DIALOG_CANCEL_TEXT, 0, 0, 10, 10, wm->button_color, win, button_handler, wm );
 		    set_handler( w_cancel, dialog_cancel_button_handler, data, wm );
-		    set_window_controller( w_cancel, 0, wm, 2 + but_xsize + 1, CEND );
-		    set_window_controller( w_cancel, 1, wm, CPERC, 100, CSUB, 2, CEND );
-		    set_window_controller( w_cancel, 2, wm, 2 + but_xsize + 1 + but_xsize, CEND );
-		    set_window_controller( w_cancel, 3, wm, CPERC, 100, CSUB, but_ysize + 2, CEND );
+		    set_window_controller( w_cancel, 0, wm, INTERELEMENT_SPACE + but_xsize + 1, CEND );
+		    set_window_controller( w_cancel, 1, wm, CPERC, 100, CSUB, INTERELEMENT_SPACE, CEND );
+		    set_window_controller( w_cancel, 2, wm, INTERELEMENT_SPACE + but_xsize + 1 + but_xsize, CEND );
+		    set_window_controller( w_cancel, 3, wm, CPERC, 100, CSUB, but_ysize + INTERELEMENT_SPACE, CEND );
 		}
 		DIALOG_OK_TEXT = 0;
 		DIALOG_CANCEL_TEXT = 0;
@@ -2277,7 +2340,7 @@ int dialog_handler( sundog_event *evt, window_manager *wm )
 	    win_draw_lock( win, wm );
 	    win_draw_box( win, 0, 0, win->xsize, win->ysize, win->color, wm );
 	    if( data->text )
-		win_draw_string( win, data->text, 2, 2, wm->black, win->color, wm );
+		win_draw_string( win, data->text, INTERELEMENT_SPACE, INTERELEMENT_SPACE, wm->black, win->color, wm );
 	    win_draw_unlock( win, wm );
 	    retval = 1;
 	    break;
@@ -2505,8 +2568,8 @@ int popup_handler( sundog_event *evt, window_manager *wm )
 		//Draw name:
 		if( win->name && win->name[ 0 ] != 0 )
 		{
-		    win_draw_box( win, popup_border - 1, cur_y - 1, win->xsize - popup_border * 2 + 2, char_y_size( wm ) + 2, blend( win->color, wm->black, 64 ), wm );
-		    win_draw_string( win, win->name, popup_border, cur_y, wm->white, blend( win->color, wm->black, 64 ), wm );
+		    win_draw_box( win, popup_border - 1, cur_y - 1, win->xsize - popup_border * 2 + 2, char_y_size( wm ) + 2, blend( win->color, wm->black, 100 ), wm );
+		    win_draw_string( win, win->name, popup_border, cur_y, wm->white, blend( win->color, wm->black, 100 ), wm );
 		    cur_y += char_y_size( wm ) + popup_border;
 		}
 

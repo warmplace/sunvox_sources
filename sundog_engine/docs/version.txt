@@ -1,5 +1,7 @@
-SunDog engine. v1.4 (26 oct 2008)
+SunDog engine. v1.5 (xx xxx xxxx)
 
+v1.5 (xx xxx xxxx):
+* .
 v1.4 (26 oct 2008):
 * ALSA support in Linux;
 * some another changes...

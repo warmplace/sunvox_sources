@@ -147,3 +147,25 @@ ticks_t time_ticks( void )
 #endif
 }
 
+#ifdef HIRES_TIMER
+ticks_t time_ticks_per_second_hires( void )
+{
+    return (ticks_t)50000;
+}
+ticks_t time_ticks_hires( void )
+{
+#ifdef LINUX
+    timespec t;
+    clock_gettime( CLOCK_PROCESS_CPUTIME_ID, &t );
+    return (ticks_t)( t.tv_nsec / ( 1000000 / 50 ) ) + t.tv_sec * 50000;
+#endif
+#ifdef WIN32
+    LARGE_INTEGER ticks_per_second;
+    LARGE_INTEGER tick; 
+    QueryPerformanceFrequency( &ticks_per_second );
+    long long l = ticks_per_second.QuadPart;
+    QueryPerformanceCounter( &tick );
+    return (ticks_t)( tick.QuadPart / ( ticks_per_second.QuadPart / 50000 ) );
+#endif
+}
+#endif

@@ -8,6 +8,10 @@
 #include "core/debug.h"
 #include "psynth_net.h"
 
+#ifdef HIRES_TIMER
+#include "time/timemanager.h"
+#endif
+
 extern int psynth_generator( PSYTEXX_SYNTH_PARAMETERS );
 extern int psynth_echo( PSYTEXX_SYNTH_PARAMETERS );
 
@@ -135,7 +139,7 @@ uchar g_vibrato_tab[ 256 ] =
     50, 47, 44, 41, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9, 6, 3
 };
 
-void psynth_init( int freq, psynth_net *pnet )
+void psynth_init( int flags, int freq, psynth_net *pnet )
 {
 #ifndef NOPSYNTH
     mem_set( pnet, sizeof( psynth_net ), 0 ); //Clear main struct
@@ -150,16 +154,19 @@ void psynth_init( int freq, psynth_net *pnet )
 
     //Create OUTPUT:
     int out = psynth_add_synth( 0, "OUT", PSYNTH_FLAG_OUTPUT, 1024-128, 512, 0, pnet );
-    //Create default synth with echo:
-    int gen = psynth_add_synth( &psynth_generator, "Generator", PSYNTH_FLAG_EXISTS, 128, 512, 0, pnet );
-    pnet->items[ gen ].ctls[ 7 ].ctl_val[ 0 ] = 0; //No sustain
-    pnet->items[ gen ].ctls[ 4 ].ctl_val[ 0 ] = 512; //Long release
-    psynth_synth_setup_finished( gen, pnet );
-    int echo = psynth_add_synth( &psynth_echo, "Echo", PSYNTH_FLAG_EXISTS, 512, 512, 0, pnet );
-    psynth_synth_setup_finished( echo, pnet );
-    //Make default link GENERATOR -> ECHO -> OUTPUT:
-    psynth_make_link( out, echo, pnet );
-    psynth_make_link( echo, gen, pnet );
+    if( flags & PSYNTH_FLAG_CREATE_SYNTHS )
+    {
+	//Create default synth with echo:
+	int gen = psynth_add_synth( &psynth_generator, "Generator", PSYNTH_FLAG_EXISTS, 128, 512, 0, pnet );
+	pnet->items[ gen ].ctls[ 7 ].ctl_val[ 0 ] = 0; //No sustain
+	pnet->items[ gen ].ctls[ 4 ].ctl_val[ 0 ] = 512; //Long release
+	psynth_synth_setup_finished( gen, pnet );
+	int echo = psynth_add_synth( &psynth_echo, "Echo", PSYNTH_FLAG_EXISTS, 512, 512, 0, pnet );
+	psynth_synth_setup_finished( echo, pnet );
+	//Make default link GENERATOR -> ECHO -> OUTPUT:
+	psynth_make_link( out, echo, pnet );
+	psynth_make_link( echo, gen, pnet );
+    }
 #endif
 }
 
@@ -201,14 +208,21 @@ void psynth_render_clear( int size, psynth_net *pnet )
 #ifndef NOPSYNTH
     if( pnet )
     {
+        pnet->all_synths_muted = 0;
+
 	if( pnet->items )
 	{
 	    for( int i = 0; i < pnet->items_num; i++ ) 
 	    {
 		//Clear "rendered" flags:
 		pnet->items[ i ].flags &= ~PSYNTH_FLAG_RENDERED;
+
+		//Check the "solo" flag:
+		if( pnet->items[ i ].flags & PSYNTH_FLAG_SOLO )
+		    pnet->all_synths_muted = 1;
+
 		//Clear output:
-		if( pnet->items[ i ].flags & PSYNTH_FLAG_OUTPUT )
+		if( ( pnet->items[ i ].flags & PSYNTH_FLAG_EXISTS ) && ( pnet->items[ i ].flags & PSYNTH_FLAG_OUTPUT ) )
 		{
 		    for( int c = 0; c < PSYNTH_MAX_CHANNELS; c++ )
 		    {
@@ -229,7 +243,7 @@ void psynth_render_clear( int size, psynth_net *pnet )
 		    }
 		}
 	    }
-	    if( pnet->items[ 0 ].flags & PSYNTH_FLAG_OUTPUT )
+	    if( ( pnet->items[ 0 ].flags & PSYNTH_FLAG_EXISTS ) && ( pnet->items[ 0 ].flags & PSYNTH_FLAG_OUTPUT ) )
 	    {
 	    }
 	}
@@ -248,7 +262,7 @@ int psynth_add_synth(  int (*synth)(
 	int i;
 	for( i = 0; i < pnet->items_num; i++ )
 	{
-	    if( pnet->items[ i ].flags == 0 ) break;
+	    if( !( pnet->items[ i ].flags & PSYNTH_FLAG_EXISTS ) ) break;
 	}
 	if( i == pnet->items_num )
 	{
@@ -392,7 +406,7 @@ void psynth_remove_synth( int snum, psynth_net *pnet )
 	//Remove links from another items:
 	for( i = 0; i < pnet->items_num; i++ )
 	{
-	    if( pnet->items[ i ].flags )
+	    if( pnet->items[ i ].flags & PSYNTH_FLAG_EXISTS )
 	    {
 		if( pnet->items[ i ].input_num )
 		{
@@ -487,12 +501,46 @@ int psynth_remove_link( int out, int in, psynth_net *pnet )
     return retval;
 }
 
+void psynth_cpu_usage_clean( psynth_net *pnet )
+{
+#ifdef HIRES_TIMER
+    for( int i = 0; i < pnet->items_num; i++ )
+    {
+	psynth_net_item *item = &pnet->items[ i ];
+	item->cpu_usage_ticks = 0;
+	item->cpu_usage_samples = 0;
+    }
+#endif
+}
+void psynth_cpu_usage_recalc( psynth_net *pnet )
+{
+#ifdef HIRES_TIMER
+    double cpu_usage = 0;
+    for( int i = 0; i < pnet->items_num; i++ )
+    {
+	psynth_net_item *item = &pnet->items[ i ];
+	if( item->flags & PSYNTH_FLAG_EXISTS )
+        {
+	    double delta = (double)item->cpu_usage_ticks / (double)time_ticks_per_second_hires();
+	    double len = (double)item->cpu_usage_samples / (double)pnet->sampling_freq;
+	    if( len == 0 ) 
+		delta = 0;
+	    else
+	        delta = ( delta / len ) * 100;
+	    cpu_usage += delta;
+	    item->cpu_usage = (int)delta;
+	}
+    }
+    pnet->cpu_usage = (int)cpu_usage;
+#endif
+}
+
 //(Start item must be 0)
 void psynth_render( int start_item, int buf_size, psynth_net *pnet )
 {
 #ifndef NOPSYNTH
     psynth_net_item *item = &pnet->items[ start_item ];
-    if( item->flags && 
+    if( ( item->flags & PSYNTH_FLAG_EXISTS ) && 
 	!( item->flags & PSYNTH_FLAG_RENDERED )
     )
     {
@@ -646,14 +694,54 @@ void psynth_render( int start_item, int buf_size, psynth_net *pnet )
 	    int result = 0;
 	    if( item->flags & PSYNTH_FLAG_INITIALIZED )
 	    {
+#ifdef HIRES_TIMER
+                ticks_t synth_start_time;
+                if( pnet->cpu_usage_enable )
+                    synth_start_time = time_ticks_hires(); 
+                else
+                    synth_start_time = 0; 
+#endif
+		int mute = 0;
+		if( item->flags & PSYNTH_FLAG_MUTE )
+		    mute = 1;
+		if( pnet->all_synths_muted )
+		{
+		    if( item->flags & PSYNTH_FLAG_SOLO )
+			mute = 0;
+		    else
+			mute = 1;
+		}
+
 		result =
 		    item->synth( item->data_ptr, 
-				start_item,
-				item->channels_in,
-				item->channels_out,
-				buf_size,
-				COMMAND_RENDER_REPLACE,
-				(void*)pnet );
+			start_item,
+			item->channels_in,
+			item->channels_out,
+			buf_size,
+			COMMAND_RENDER_REPLACE,
+			(void*)pnet );
+
+		if( mute && result )
+		{
+		    int outputs_num = psynth_get_number_of_outputs( start_item, pnet );
+		    for( int ch = 0; ch < outputs_num; ch++ )
+		    {
+			STYPE *out = item->channels_out[ ch ];
+			for( int snum = 0; snum < buf_size; snum++ )
+			{
+			    out[ snum ] = 0;
+			}
+		    }
+		}
+#ifdef HIRES_TIMER
+                ticks_t synth_end_time;
+                if( pnet->cpu_usage_enable )
+                    synth_end_time = time_ticks_hires();
+                else
+                    synth_end_time = 0;
+		item->cpu_usage_ticks += synth_end_time - synth_start_time;
+		item->cpu_usage_samples += buf_size;
+#endif
 	    }
 	    if( result == 0 )
 	    {

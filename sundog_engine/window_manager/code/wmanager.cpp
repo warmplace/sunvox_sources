@@ -292,6 +292,8 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
     wm->current_event_num = 0;
     sundog_mutex_init( &wm->events_mutex, 0 );
 
+    wm->flags = flags;
+
     wm->exit_request = 0;
     wm->exit_code = 0;
 
@@ -355,7 +357,7 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
     wm->white = get_color( 255, 255, 255 );
     wm->black = get_color( 0, 0, 0 );
 #ifdef GRAYSCALE
-    wm->green = get_color( 220, 220, 220 );
+    wm->green = get_color( 64, 255, 64 );
     wm->yellow = get_color( 250, 250, 250 );
     wm->red = get_color( 230, 230, 230 );
 #else
@@ -363,6 +365,16 @@ int win_init( char *windowname, int xsize, int ysize, int flags, window_manager 
     wm->yellow = get_color( 255, 255, 0 );
     wm->red = get_color( 255, 0, 0 );
 #endif
+    wm->dialog_color = wm->white;
+    wm->decorator_color = blend( wm->white, wm->black, 44 );
+    wm->decorator_border = blend( wm->black, wm->decorator_color, 90 );
+    wm->button_color = wm->colors[ 12 ];
+    wm->menu_color = blend( wm->white, wm->black, 24 );
+    wm->selection_color = blend( wm->white, wm->green, 145 );
+    wm->text_background = blend( wm->dialog_color, wm->black, 44 );
+    wm->list_background = wm->text_background;
+    wm->scroll_color = wm->colors[ 13 ];
+    wm->scroll_background_color = wm->colors[ 11 ];
 
     wm->decor_border_size = 4;
     wm->decor_header_size = 14;
@@ -1293,7 +1305,7 @@ int EVENT_LOOP_BEGIN( sundog_event *evt, window_manager *wm )
 
 	sundog_mutex_unlock( &wm->events_mutex );
 	
-	//Check the event:
+	//Check the event and handle it:
 	if( check_event( evt, wm ) == 0 )
 	{
 	    handle_event( evt, wm );
@@ -1305,12 +1317,9 @@ int EVENT_LOOP_BEGIN( sundog_event *evt, window_manager *wm )
 
 int EVENT_LOOP_END( window_manager *wm )
 {
-    g_frame++;
-    if( g_skip_frames == 0 || g_frame % g_skip_frames == 0 )
-    {
-	user_screen_redraw( wm );
-	device_redraw_framebuffer( wm );
-    }
+    wm->frame_counter++;
+    user_screen_redraw( wm );
+    device_redraw_framebuffer( wm );
     if( wm->exit_request ) return 1;
     return 0;
 }
@@ -1530,6 +1539,7 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	case EVT_DRAW:
 	    win_draw_lock( win, wm );
 	    win_draw_box( win, 0, 0, win->xsize, win->ysize, win->color, wm );
+	    if( 0 )
 	    {
 		int ssize = string_size( win->childs[0]->name, wm );
 		if( ssize > 0 )
@@ -1545,11 +1555,8 @@ int decorator_handler( sundog_event *evt, window_manager *wm )
 	    }
 	    if( win->childs_num )
 	    {
-		win_draw_string( win, win->childs[0]->name, DECOR_BORDER_SIZE, ( DECOR_HEADER_SIZE - char_y_size( wm ) ) / 2, get_color(0,0,0), win->color, wm );
-		win_draw_line( win, 0, 0, win->xsize, 0, get_color(0,0,0), wm );
-		win_draw_line( win, win->xsize-1, 0, win->xsize-1, win->ysize, get_color(0,0,0), wm );
-		win_draw_line( win, 0, 0, 0, win->ysize, get_color(0,0,0), wm );
-		win_draw_line( win, 0, win->ysize-1, win->xsize, win->ysize-1, get_color(0,0,0), wm );
+		win_draw_string( win, win->childs[0]->name, DECOR_BORDER_SIZE, ( DECOR_HEADER_SIZE + DECOR_BORDER_SIZE - char_y_size( wm ) ) / 2, get_color(0,0,0), win->color, wm );
+		win_draw_frame( win, 0, 0, win->xsize, win->ysize, wm->decorator_border, wm );
 	    }
 	    else
 	    {
@@ -1613,7 +1620,7 @@ WINDOWPTR new_window_with_decorator(
 	"decorator", 
 	x, y,
 	dec_xsize, dec_ysize,
-	blend( color, wm->black, 64 ),
+	wm->decorator_color,
 	parent,
 	decorator_handler,
 	wm );
@@ -1717,6 +1724,8 @@ void win_draw_frame3d( WINDOWPTR win, int x, int y, int xsize, int ysize, COLOR 
     inout &= 255;
     int tr = 110;
     int wtr = 120;
+    COLOR white = wm->white;
+    COLOR black = wm->black;
     /*if( depth == 2 )
     {
 	win_draw_line( win, x + 1, y + 1, x + xsize - 2, y + 1, blend( color, wm->white, wtr / 2 ), wm );
@@ -1726,17 +1735,17 @@ void win_draw_frame3d( WINDOWPTR win, int x, int y, int xsize, int ysize, COLOR 
     {
 	if( inout == 0 )
 	{
-	    win_draw_line( win, x, y, x + xsize - 1, y, blend( color, wm->black, tr ), wm );
-	    win_draw_line( win, x + xsize - 1, y, x + xsize - 1, y + ysize - 1, blend( color, wm->black, tr ), wm );
-	    win_draw_line( win, x, y, x, y + ysize - 1, blend( color, wm->white, wtr ), wm );
-	    win_draw_line( win, x, y + ysize - 1, x + xsize - 1, y + ysize - 1, blend( color, wm->white, wtr ), wm );
+	    win_draw_line( win, x, y, x + xsize - 1, y, blend( color, black, tr ), wm );
+	    win_draw_line( win, x + xsize - 1, y, x + xsize - 1, y + ysize - 1, blend( color, black, tr ), wm );
+	    win_draw_line( win, x, y, x, y + ysize - 1, blend( color, white, wtr ), wm );
+	    win_draw_line( win, x, y + ysize - 1, x + xsize - 1, y + ysize - 1, blend( color, white, wtr ), wm );
 	}
 	else
 	{
-	    win_draw_line( win, x, y, x + xsize - 1, y, blend( color, wm->white, wtr ), wm );
-	    win_draw_line( win, x + xsize - 1, y, x + xsize - 1, y + ysize - 1, blend( color, wm->white, wtr ), wm );
-	    win_draw_line( win, x, y, x, y + ysize - 1, blend( color, wm->black, tr ), wm );
-	    win_draw_line( win, x, y + ysize - 1, x + xsize - 1, y + ysize - 1, blend( color, wm->black, tr ), wm );
+	    win_draw_line( win, x, y, x + xsize - 1, y, blend( color, white, wtr ), wm );
+	    win_draw_line( win, x + xsize - 1, y, x + xsize - 1, y + ysize - 1, blend( color, white, wtr ), wm );
+	    win_draw_line( win, x, y, x, y + ysize - 1, blend( color, black, tr ), wm );
+	    win_draw_line( win, x, y + ysize - 1, x + xsize - 1, y + ysize - 1, blend( color, black, tr ), wm );
 	}
 	x++; 
 	y++;
@@ -2200,8 +2209,8 @@ char *dialog_open_file( char *name, char *mask, char *id, window_manager *wm )
     WINDOWPTR win = new_window_with_decorator( 
 	name, 
 	0, 0, 
-	320, 200, 
-	wm->colors[ 10 ],
+	340, 320, 
+	wm->dialog_color,
 	wm->root_win, 
 	files_handler,
 	DECOR_FLAG_CENTERED | DECOR_FLAG_CHECK_SIZE,
@@ -2236,8 +2245,8 @@ int dialog( char *name, char *ok, char *cancel, window_manager *wm )
     WINDOWPTR win = new_window_with_decorator( 
 	"", 
 	0, 0, 
-	320, 200,
-	wm->colors[ 14 ], 
+	320, 190,
+	wm->dialog_color, 
 	wm->root_win, 
 	dialog_handler,
 	DECOR_FLAG_CENTERED | DECOR_FLAG_CHECK_SIZE,

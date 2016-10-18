@@ -30,15 +30,13 @@
 //################################
 
 extern char *user_window_name;
-extern char *user_config_file_name;
+extern char *user_profile_name;
 extern char *user_debug_log_file_name;
 extern int user_window_xsize;
 extern int user_window_ysize;
 extern int user_window_flags;
 
 window_manager wm;
-int g_frame = 0;
-int g_skip_frames = 0;
 char *g_argv[ 64 ];
 
 #if defined(WIN) || defined(WINCE)
@@ -178,22 +176,25 @@ int main( int argc, char *argv[] )
 	dprint( "\n" );
 
 	get_disks();
-	read_file_with_options( user_config_file_name );
+	profile_new( 0 );
+	profile_load( user_profile_name, 0 );
 	char *window_name = user_window_name;
-	if( get_option( OPT_WINDOWNAME ) != -1 ) window_name = (char*)get_option( OPT_WINDOWNAME );
+	if( profile_get_str_value( KEY_WINDOWNAME, 0 ) ) 
+	    window_name = profile_get_str_value( KEY_WINDOWNAME, 0 );
 	int flags = 0;
-	if( get_option( OPT_NOBORDER ) != -1 ) flags = WIN_INIT_FLAG_NOBORDER;
+	if( profile_get_int_value( KEY_NOBORDER, 0 ) != -1 ) 
+	    flags = WIN_INIT_FLAG_NOBORDER;
 	if( win_init( window_name, user_window_xsize, user_window_ysize, user_window_flags | flags, &wm ) == 0 )
 	{
 	    int sound_stream_error = 0;    
 #ifndef NOSOUND
-	    if( get_option( OPT_FREQ ) == -1 )
+	    if( profile_get_int_value( KEY_FREQ, 0 ) == -1 )
 	    {
 		sound_stream_error = sound_stream_init( 44100, 2 );
 	    }
 	    else
 	    {
-		int freq = get_option( OPT_FREQ );
+		int freq = profile_get_int_value( KEY_FREQ, 0 );
 		if( freq < 44100 )
 		{
 		    dprint( "ERROR. Sampling frequency must be >= 44100\n" );
@@ -227,6 +228,7 @@ int main( int argc, char *argv[] )
 	    }
 	    win_close( &wm );     //Close window manager
 	}
+	profile_close( 0 );
 	debug_close();
 	mem_free_all();       //Close all memory blocks
 

@@ -1,7 +1,7 @@
 #ifndef __CORE__
 #define __CORE__
 
-#define SUNDOG_VERSION "SunDog Engine v1.3"
+#define SUNDOG_VERSION "SunDog Engine v1.5"
 #define SUNDOG_DATE    __DATE__
 
 //#define COLOR8BITS	//8 bit color

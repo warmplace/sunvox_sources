@@ -47,12 +47,10 @@ Boolean FormHandler( EventPtr event )
 	    err = FtrGet( pinCreator, pinFtrAPIVersion, &pinMgrVersion );
 	    if ( !err && pinMgrVersion != pinAPIVersion1_0 )
 	    {
-		/*
 		FrmSetDIAPolicyAttr( gpForm, frmDIAPolicyCustom );
 		PINSetInputTriggerState( pinInputTriggerEnabled );
-		PINSetInputAreaState( 2 ); //pinInputAreaHide
-		StatHide(); //Hide control panel
-		*/
+		//PINSetInputAreaState( 2 ); //pinInputAreaHide
+		//StatHide(); //Hide control panel
 	    }
 	    else
 	    { //No pinAPI: (TungstenT for example)

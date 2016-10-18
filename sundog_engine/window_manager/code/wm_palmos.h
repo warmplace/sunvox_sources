@@ -18,7 +18,7 @@
 
 void wait( void )
 {
-    int cur_ticks = time_ticks();
+    ticks_t cur_ticks = time_ticks();
     int counter = 0;
     while( time_ticks() < cur_ticks + ( time_ticks_per_second() / 2 ) )
     {

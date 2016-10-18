@@ -7,11 +7,16 @@
 #include "psynth.h"
 
 #if defined(STYPE_FLOATINGPOINT) && defined(ARCH_X86)
+    #include <math.h>
     static inline float
     undenormalise( volatile float s )
     {
-	s += 9.8607615E-32f;
-	return s - 9.8607615E-32f;
+        float absx = fabs( s );
+	//very small numbers fail the first test, eliminating denormalized numbers
+	//(zero also fails the first test, but that is OK since it returns zero.)
+	//very large numbers fail the second test, eliminating infinities.
+	//Not-a-Numbers fail both tests and are eliminated.
+	return ( absx > 1e-15 && absx < 1e15 ) ? s : 0.0F;
     }
 #else
     #define undenormalise( s ) s

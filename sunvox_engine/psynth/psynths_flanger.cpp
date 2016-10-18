@@ -25,14 +25,15 @@ struct SYNTH_DATA
     CTYPE   ctl_vibrato_speed;
     CTYPE   ctl_vibrato_power;
     CTYPE   ctl_vibrato_type;
+    CTYPE   ctl_set_vibrato_phase;
     //Synth data: ##########################################################
     int	    buf_size;
     STYPE   *buf[ SYNTH_OUTPUTS ];
     int	    buf_ptr;
-    int	    tick_counter;   //From 0 to tick_size
+    int	    tick_counter; //From 0 to tick_size
     CTYPE   floating_delay;
     CTYPE   prev_floating_delay;
-    ulong   vibrato_ptr;
+    ulong   vibrato_ptr; //From 0 to 4095
     uchar   *vibrato_tab;
 };
 
@@ -62,7 +63,7 @@ int SYNTH_HANDLER(
 	    break;
 
 	case COMMAND_GET_SYNTH_INFO:
-	    retval = (int)"Flanger.\nMax delay is 1/64 second\n\nUse low \"response\" values\nfor smooth delay change";
+	    retval = (int)"Flanger.\nMax delay is 1/64 second\n\nUse low \"response\" values\nfor smooth delay changing";
 	    break;
 
 	case COMMAND_GET_INPUTS_NUM: retval = SYNTH_INPUTS; break;
@@ -79,6 +80,7 @@ int SYNTH_HANDLER(
 	    psynth_register_ctl( synth_id, "Vibrato speed", "", 0, 512, 8, 0, &data->ctl_vibrato_speed, net );
 	    psynth_register_ctl( synth_id, "Vibrato power", "", 0, 256, 32, 0, &data->ctl_vibrato_power, net );
 	    psynth_register_ctl( synth_id, "Vibrato type", "hsin/sin", 0, 1, 0, 1, &data->ctl_vibrato_type, net );
+	    psynth_register_ctl( synth_id, "Set vib. phase", "", 0, 256, 0, 0, &data->ctl_set_vibrato_phase, net );
 	    data->buf_size = pnet->sampling_freq / 64;
 	    for( i = 0; i < SYNTH_OUTPUTS; i++ )
 	    {
@@ -226,6 +228,14 @@ int SYNTH_HANDLER(
 	    retval = 1;
 	    break;
 
+	case COMMAND_SET_GLOBAL_CONTROLLER:
+	    if( pnet->ctl_num == 8 )
+	    {
+		// "set vibrato phase" controller selected:
+		data->vibrato_ptr = ( pnet->ctl_val / 8 ) & 4095;
+	    }
+	    break;
+ 
 	case COMMAND_CLOSE:
 	    for( i = 0; i < SYNTH_OUTPUTS; i++ )
 	    {

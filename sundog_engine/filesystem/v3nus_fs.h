@@ -17,6 +17,8 @@
 //			  v3_open( "0:/some_file.txt", "rb" );
 //			  ...
 
+#include "core/core.h"
+
 #if defined(WIN) | defined(WINCE)
     #include "windows.h"
 #endif
@@ -183,27 +185,5 @@ struct find_struct
 int find_first( find_struct* );  //Return values: 0 - no files
 int find_next( find_struct* );   //Return values: 0 - no files
 void find_close( find_struct* );
-
-void save_string( char *str, uchar num, char *filename ); //save null-terminated string to the file
-int load_string( char *str, uchar num, char *filename ); //load null-terminated string from file (or -1 if no such file)
-void save_long( long num, char *filename );
-long load_long( char *filename ); // -1 if no such file
-
-enum
-{
-    OPT_SCREENX = 0,
-    OPT_SCREENY,
-    OPT_SCREENFLIP,
-    OPT_FULLSCREEN,
-    OPT_SOUNDBUFFER,
-    OPT_AUDIODEVICE,
-    OPT_FREQ,
-    OPT_WINDOWNAME,
-    OPT_NOBORDER,
-    OPT_LAST
-};
-
-void read_file_with_options( char *filename );
-long get_option( long option ); //Return -1 if no such option
 
 #endif //__V3NUS_FS__

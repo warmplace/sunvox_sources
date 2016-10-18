@@ -25,15 +25,15 @@
 #include "../sound.h"
 #include "core/debug.h"
 #include "filesystem/v3nus_fs.h"
-#include "window_manager/wmanager.h"
+#include "utils/utils.h"
 
 #ifdef OUTPUT_TO_FILE
 FILE *g_audio_output = 0;
 #endif
 
-#ifndef NOSOUND
-
 sound_struct g_snd; //Main sound structure;
+
+#ifndef NOSOUND
 
 int g_paused = 0;
 int g_first_play = 1;
@@ -46,6 +46,7 @@ int g_first_play = 1;
 int BUFLEN = DEFAULT_BUFFER_SIZE;
 int dsp;
 pthread_t pth;
+volatile int g_sound_thread_exit_request = 0;
 #ifdef LINUX_OSS
     #include <linux/soundcard.h>
     #include <fcntl.h>
@@ -53,25 +54,100 @@ pthread_t pth;
 #endif //...LINUX_OSS
 #ifdef LINUX_ALSA
     #include <alsa/asoundlib.h>
-    snd_pcm_t *g_alsa_playback_handle = 0;
+snd_pcm_t *g_alsa_playback_handle = 0;
+int xrun_recovery( snd_pcm_t *handle, int err )
+{
+    if( err == -EPIPE ) 
+    { //under-run:
+	printf( "ALSA EPIPE (underrun)\n" );
+	err = snd_pcm_prepare( handle );
+	if( err < 0 )
+	    printf( "ALSA Can't recovery from underrun, prepare failed: %s\n", snd_strerror( err ) );
+	return 0;
+    }
+    else if( err == -ESTRPIPE )
+    {
+	printf( "ALSA ESTRPIPE\n" );
+	while( ( err = snd_pcm_resume( handle ) ) == -EAGAIN )
+	    sleep( 1 ); //wait until the suspend flag is released
+	if( err < 0 )
+	{
+	    err = snd_pcm_prepare( handle );
+	    if( err < 0 )
+		 printf( "ALSA Can't recovery from suspend, prepare failed: %s\n", snd_strerror( err ) );
+	}
+	return 0;
+    }
+    return err;
+}
 #endif //...LINUX_ALSA
 void *sound_thread( void *arg )
 {
-    if( get_option( OPT_SOUNDBUFFER ) != -1 ) BUFLEN = get_option( OPT_SOUNDBUFFER );
+    if( profile_get_int_value( KEY_SOUNDBUFFER, 0 ) != -1 ) 
+	BUFLEN = profile_get_int_value( KEY_SOUNDBUFFER, 0 );
     char buf[ BUFLEN * 4 ];
-    long len = BUFLEN;
+    long len;
+    volatile int err;
     for(;;) 
     {
+	len = BUFLEN;
 	main_callback( (sound_struct *)arg, 0, buf, len );
 #ifdef LINUX_OSS
-	if( dsp >= 0 ) 
+	if( dsp >= 0 && g_sound_thread_exit_request == 0 )
 	{
-	    write( dsp, buf, len * 4 ); 
+	    err = write( dsp, buf, len * 4 ); 
 #endif //...LINUX_OSS
 #ifdef LINUX_ALSA
-	if( g_alsa_playback_handle >= 0 ) 
+	if( g_alsa_playback_handle != 0 && g_sound_thread_exit_request == 0 ) 
 	{
-	    snd_pcm_writei( g_alsa_playback_handle, buf, len );
+	    char *buf_ptr = buf;
+	    int sent = 0;
+	    int frames_to_deliver;
+	    while( len > 0 )
+	    {
+		//Wait till the interface is ready for data, or 1 second has elapsed:
+		err = snd_pcm_wait( g_alsa_playback_handle, 1000 );
+		if( err < 0 ) 
+		{
+		    printf( "ALSA snd_pcm_wait error: %s\n", snd_strerror( err ) );
+		    err = xrun_recovery( g_alsa_playback_handle, err );
+		    if( err < 0 )
+		    {
+			printf( "ALSA snd_pcm_wait error: %s\n", snd_strerror( err ) );
+			goto sound_thread_exit;
+		    }
+		}
+	    
+		//Find out how much space is available for playback data:
+		frames_to_deliver = snd_pcm_avail_update( g_alsa_playback_handle );
+		if( frames_to_deliver < 0 )
+		{
+		    if( frames_to_deliver == -EPIPE ) 
+		    {
+			printf( "ALSA an xrun occured\n" );
+			break;
+		    }
+		    else
+		    {
+			printf( "ALSA unknown avail update return value (%d)\n", frames_to_deliver );
+			break;
+		    }
+		}
+	    
+		frames_to_deliver = frames_to_deliver > len ? len : frames_to_deliver;
+		
+		//printf( "len: %d [%d]\n", len, frames_to_deliver );
+
+    		sent = snd_pcm_writei( g_alsa_playback_handle, buf_ptr, frames_to_deliver );
+	    
+		if( sent != frames_to_deliver )
+		{
+		    printf( "ALSA playback callback failed\n" );
+		}
+		
+		len -= frames_to_deliver;
+		buf_ptr += frames_to_deliver * 4;
+	    }
 #endif //...LINUX_ALSA
 #ifdef OUTPUT_TO_FILE
 	    fwrite( buf, 1, len * 4, g_audio_output );
@@ -82,6 +158,8 @@ void *sound_thread( void *arg )
 	    break;
 	}
     }
+sound_thread_exit:
+    g_sound_thread_exit_request = 0;
     pthread_exit( 0 );
     return 0;
 }
@@ -316,7 +394,7 @@ int sound_stream_init( int freq, int channels )
     //Start first time:
     int temp;
     dsp = -1;
-    int adev = get_option( OPT_AUDIODEVICE );
+    int adev = profile_get_str_value( KEY_AUDIODEVICE, 0 );
     if( adev != -1 )
     {
 	char *ts = (char*)adev;
@@ -354,9 +432,14 @@ int sound_stream_init( int freq, int channels )
 #ifdef LINUX_ALSA
     int err;
     snd_pcm_hw_params_t *hw_params;
-    if( get_option( OPT_AUDIODEVICE ) != -1 )
+    snd_pcm_sw_params_t *sw_params;
+
+    snd_pcm_hw_params_malloc( &hw_params );
+    snd_pcm_sw_params_malloc( &sw_params );
+
+    if( profile_get_str_value( KEY_AUDIODEVICE, 0 ) )
     {
-	err = snd_pcm_open( &g_alsa_playback_handle, (char*)get_option( OPT_AUDIODEVICE ), SND_PCM_STREAM_PLAYBACK, 0 );
+	err = snd_pcm_open( &g_alsa_playback_handle, profile_get_str_value( KEY_AUDIODEVICE, 0 ), SND_PCM_STREAM_PLAYBACK, 0 );
     }
     else
     {
@@ -367,12 +450,7 @@ int sound_stream_init( int freq, int channels )
 	dprint( "ALSA ERROR: Can't open audio device: %s\n", snd_strerror( err ) );
 	return 1;
     }
-    err = snd_pcm_hw_params_malloc( &hw_params );
-    if( err < 0 ) 
-    {
-	dprint( "ALSA ERROR: Can't allocate hardware parameter structure: %s\n", snd_strerror( err ) );
-	return 1;
-    }
+    
     err = snd_pcm_hw_params_any( g_alsa_playback_handle, hw_params );
     if( err < 0 ) 
     {
@@ -397,6 +475,7 @@ int sound_stream_init( int freq, int channels )
 	dprint( "ALSA ERROR: Can't set sample rate: %s\n", snd_strerror( err ) );
 	return 1;
     }
+    dprint( "ALSA Sample rate: %d\n", freq );
     err = snd_pcm_hw_params_set_channels( g_alsa_playback_handle, hw_params, channels );
     if( err < 0 ) 
     {
@@ -404,8 +483,8 @@ int sound_stream_init( int freq, int channels )
 	return 1;
     }
     snd_pcm_uframes_t frames;
-    if( get_option( OPT_SOUNDBUFFER ) != -1 )
-	frames = get_option( OPT_SOUNDBUFFER );
+    if( profile_get_int_value( KEY_SOUNDBUFFER, 0 ) != -1 )
+	frames = profile_get_int_value( KEY_SOUNDBUFFER, 0 );
     else
 	frames = DEFAULT_BUFFER_SIZE;
     err = snd_pcm_hw_params_set_buffer_size_near( g_alsa_playback_handle, hw_params, &frames );
@@ -414,13 +493,23 @@ int sound_stream_init( int freq, int channels )
 	dprint( "ALSA ERROR: Can't set buffer size: %s\n", snd_strerror( err ) );
 	return 1;
     }
+    snd_pcm_hw_params_get_buffer_size( hw_params, &frames );
+    dprint( "ALSA Buffer size: %d samples\n", frames );
     err = snd_pcm_hw_params( g_alsa_playback_handle, hw_params );
     if( err < 0 ) 
     {
 	dprint( "ALSA ERROR: Can't set parameters: %s\n", snd_strerror( err ) );
 	return 1;
     }
+
+    //snd_pcm_sw_params_current( g_alsa_playback_handle, sw_params );
+    //snd_pcm_sw_params_set_start_threshold( g_alsa_playback_handle, sw_params, 0 );
+    //snd_pcm_sw_params_set_avail_min( g_alsa_playback_handle, sw_params, frames / 8 );
+    //snd_pcm_sw_params( g_alsa_playback_handle, sw_params );
+
     snd_pcm_hw_params_free( hw_params );
+    snd_pcm_sw_params_free( sw_params );
+    
     err = snd_pcm_prepare( g_alsa_playback_handle );
     if( err < 0 ) 
     {
@@ -522,8 +611,8 @@ int sound_stream_init( int freq, int channels )
     // two seconds, to keep data writes well ahead of the play
     // position.
  
-    if( get_option( OPT_SOUNDBUFFER ) != -1 )
-	dsbdesc.dwBufferBytes = get_option( OPT_SOUNDBUFFER ) * 2 * channels * 2;
+    if( profile_get_int_value( KEY_SOUNDBUFFER, 0 ) != -1 )
+	dsbdesc.dwBufferBytes = profile_get_int_value( KEY_SOUNDBUFFER, 0 ) * 2 * channels * 2;
     else
 	dsbdesc.dwBufferBytes = DEFAULT_BUFFER_SIZE * 2 * channels * 2;
     dsbdesc.lpwfxFormat = pwfx;
@@ -712,8 +801,8 @@ int sound_stream_init( int freq, int channels )
 
     //Set buffer size:
     ulong buffer_bytes;
-    if( get_option( OPT_SOUNDBUFFER ) != -1 )
-	buffer_bytes = get_option( OPT_SOUNDBUFFER ) * 2 * channels * 2;
+    if( profile_get_int_value( KEY_SOUNDBUFFER, 0 ) != -1 )
+	buffer_bytes = profile_get_int_value( KEY_SOUNDBUFFER, 0 ) * 2 * channels * 2;
     else
 	buffer_bytes = DEFAULT_BUFFER_SIZE * 2 * channels * 2;
 	
@@ -740,7 +829,7 @@ void sound_stream_play( void )
 
     g_snd.need_to_stop = 0;
     
-#ifndef NONPALM
+#ifdef PALMOS
     if( main_stream )
     {
 	if( g_paused ) 
@@ -782,7 +871,7 @@ void sound_stream_stop( void )
     while( g_snd.stream_stoped == 0 ) {} //Waiting for stoping
 #endif
 
-#ifndef NONPALM
+#ifdef PALMOS
     if( main_stream && g_paused == 0 )
     {
 	g_snd.stream_stoped = 0;
@@ -834,12 +923,22 @@ void sound_stream_close( void )
 
 #ifdef LINUX
 #ifdef LINUX_OSS
-    int our_dsp = dsp;
-    dsp = -1;
-    if( our_dsp >= 0 ) close( our_dsp );
+    if( dsp >= 0 )
+    {
+	g_sound_thread_exit_request = 1;
+	while( g_sound_thread_exit_request ) {}
+	close( dsp );
+	dsp = -1;
+    }
 #endif //...LINUX_OSS
 #ifdef LINUX_ALSA
-    snd_pcm_close( g_alsa_playback_handle );
+    if( g_alsa_playback_handle )
+    {
+	g_sound_thread_exit_request = 1;
+	while( g_sound_thread_exit_request ) {}
+	snd_pcm_close( g_alsa_playback_handle );
+	g_alsa_playback_handle = 0;
+    }
 #endif //...LINUX_ALSA
 #endif
 
@@ -902,4 +1001,25 @@ void sound_stream_close( void )
 #endif
 }
 
-#endif //NOSOUND
+#else //NOSOUND
+
+//Sound disabled:
+
+int sound_stream_init( int freq, int channels )
+{
+    return 0;
+}
+
+void sound_stream_play( void )
+{
+}
+
+void sound_stream_stop( void )
+{
+}
+
+void sound_stream_close( void )
+{
+}
+
+#endif

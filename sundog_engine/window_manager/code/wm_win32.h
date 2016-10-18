@@ -8,7 +8,7 @@
 #define __WINMANAGER_WIN32__
 
 #include <windows.h>
-#include "resource.h" //(IDI_ICON1) Must be in your project
+#include "win_res.h" //(IDI_ICON1) Must be in your project
 
 char *className = "SunDogEngine";
 char *windowName = "SunDogEngine_win32";
@@ -56,12 +56,12 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
 	
 #ifdef GDI
     wm->gdi_bitmap_info[ 0 ] = 888;
-    if( get_option( OPT_SCREENX ) != -1 ) xsize = get_option( OPT_SCREENX );
-    if( get_option( OPT_SCREENY ) != -1 ) ysize = get_option( OPT_SCREENY );
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
 #endif
 #ifdef DIRECTDRAW
-    if( get_option( OPT_SCREENX ) != -1 ) xsize = get_option( OPT_SCREENX );
-    if( get_option( OPT_SCREENY ) != -1 ) ysize = get_option( OPT_SCREENY );
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
     fix_fullscreen_resolution( &xsize, &ysize, wm );
 #endif
 #ifdef OPENGL
@@ -69,8 +69,8 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
     wm->real_window_height = ysize = 512;
 #endif
 #ifdef OPENGLCOMP
-    if( get_option( OPT_SCREENX ) != -1 ) xsize = get_option( OPT_SCREENX );
-    if( get_option( OPT_SCREENY ) != -1 ) ysize = get_option( OPT_SCREENY );
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
 #endif
 
     wm->screen_xsize = xsize;
@@ -383,7 +383,7 @@ int Win32CreateWindow(HINSTANCE hCurrentInst, HINSTANCE hPreviousInst, LPSTR lps
 	WS = WS_POPUP;
 #ifdef DIRECTDRAW
     int fullscreen = 1;
-    //if( get_option( OPT_FULLSCREEN ) != -1 ) fullscreen = 1;
+    //if( profile_get_int_value( KEY_FULLSCREEN, 0 ) != -1 ) fullscreen = 1;
     if( fullscreen ) 
     {
 	WS = WS_POPUP;

@@ -6,6 +6,7 @@
 
 #include "../../core/core.h"
 #include "../../memory/memory.h"
+#include "../../filesystem/v3nus_fs.h"
 #include "../utils.h"
 
 //WORKING WITH A STRING LISTS:
@@ -330,6 +331,210 @@ int sundog_mutex_unlock( sundog_mutex *mutex )
     mutex->mutex_cnt = 0;
 #endif
     return retval;
+}
+
+//PROFILES:
+
+profile_data g_profile;
+
+void profile_new( profile_data *p )
+{
+    if( p == 0 ) p = &g_profile;
+
+    p->num = 4;
+    p->keys = (char**)MEM_NEW( HEAP_DYNAMIC, sizeof( char* ) * p->num );
+    p->values = (char**)MEM_NEW( HEAP_DYNAMIC, sizeof( char* ) * p->num );
+    mem_set( p->keys, sizeof( char* ) * p->num, 0 );
+    mem_set( p->values, sizeof( char* ) * p->num, 0 );
+}
+
+void profile_resize( int new_num, profile_data *p )
+{
+    if( p == 0 ) p = &g_profile;
+
+    if( new_num > p->num )
+    {
+	p->keys = (char**)mem_resize( p->keys, sizeof( char* ) * new_num );
+	p->values = (char**)mem_resize( p->values, sizeof( char* ) * new_num );
+	mem_set( p->keys + sizeof( char* ) * p->num, sizeof( char* ) * ( new_num - p->num ), 0 );
+	mem_set( p->values + sizeof( char* ) * p->num, sizeof( char* ) * ( new_num - p->num ), 0 );
+	p->num = new_num;
+    }
+}
+
+int profile_add_value( char *key, char *value, profile_data *p )
+{
+    int rv = -1;
+
+    if( p == 0 ) p = &g_profile;
+
+    if( key )
+    {
+	for( rv = 0; rv < p->num; rv++ )
+	{
+	    if( p->keys[ rv ] == 0 ) break;
+	}
+	if( rv == p->num )
+	{
+	    //Free item not found.
+	    profile_resize( p->num + 4, p );
+	}
+	if( p->values[ rv ] ) mem_free( p->values[ rv ] );
+	p->values[ rv ] = 0;
+	if( value )
+	{
+	    p->values[ rv ] = (char*)MEM_NEW( HEAP_DYNAMIC, mem_strlen( value ) + 1 );
+	    p->values[ rv ][ 0 ] = 0;
+	    mem_strcat( p->values[ rv ], value );
+	}
+	p->keys[ rv ] = (char*)MEM_NEW( HEAP_DYNAMIC, mem_strlen( key ) + 1 );
+	p->keys[ rv ][ 0 ] = 0;
+	mem_strcat( p->keys[ rv ], key );
+    }
+    return rv;
+}
+
+int profile_get_int_value( char *key, profile_data *p )
+{
+    int rv = -1;
+
+    if( p == 0 ) p = &g_profile;
+
+    if( key )
+    {
+	int i;
+	for( i = 0; i < p->num; i++ )
+	{
+	    if( p->keys[ i ] )
+		if( mem_strcmp( p->keys[ i ], key ) == 0 ) 
+		    break;
+	}
+	if( i < p->num && p->values[ i ] )
+	{
+	    rv = string_to_int( p->values[ i ] );
+	}
+    }
+    return rv;
+}
+
+char* profile_get_str_value( char *key, profile_data *p )
+{
+    char* rv = 0;
+
+    if( p == 0 ) p = &g_profile;
+
+    if( key )
+    {
+	int i;
+	for( i = 0; i < p->num; i++ )
+	{
+	    if( p->keys[ i ] )
+		if( mem_strcmp( p->keys[ i ], key ) == 0 ) 
+		    break;
+	}
+	if( i < p->num && p->values[ i ] )
+	{
+	    rv = p->values[ i ];
+	}
+    }
+    return rv;
+}
+
+void profile_close( profile_data *p )
+{
+    if( p == 0 ) p = &g_profile;
+
+    if( p->num )
+    {
+	for( int i = 0; i < p->num; i++ )
+	{
+	    if( p->keys[ i ] ) mem_free( p->keys[ i ] );
+	    if( p->values[ i ] ) mem_free( p->values[ i ] );
+	}
+	mem_free( p->keys );
+	mem_free( p->values );
+	p->keys = 0;
+	p->values = 0;
+	p->num = 0;
+    }
+}
+
+#define PROFILE_KEY_CHAR( cc ) ( !( cc == ' ' || cc == 0x09 || cc == 0x0A || cc == 0x0D || cc == -1 ) )
+
+void profile_load( char *filename, profile_data *p )
+{
+    char str1[ 129 ];
+    char str2[ 129 ];
+    str1[ 128 ] = 0;
+    str2[ 128 ] = 0;
+    int i;
+
+    if( p == 0 ) p = &g_profile;
+
+    profile_close( p );
+    profile_new( p );
+
+    V3_FILE f = v3_open( filename, "rb" );
+    if( f )
+    {
+	int c;
+	char comment_mode = 0;
+	char key_mode = 0;
+	while( 1 )
+	{
+	    c = v3_getc( f );
+	    if( c == -1 ) break; //EOF
+	    if( c == 0xD || c == 0xA ) 
+	    {
+		comment_mode = 0; //Reset comment mode at the end of line
+		key_mode = 0;
+	    }
+	    if( comment_mode == 0 )
+	    {
+		if( c == '/' ) 
+		{
+		    comment_mode = 1; //Comments
+		    continue;
+		}
+		if( PROFILE_KEY_CHAR( c ) )
+		{
+		    if( key_mode == 0 )
+		    {
+			//Get key name:
+			for( i = 0; i < 128; i++ )
+			{
+			    str1[ i ] = c;
+			    c = v3_getc( f );
+			    if( !PROFILE_KEY_CHAR( c ) ) 
+			    { 
+				str1[ i + 1 ] = 0; 
+				break; 
+			    }
+			}
+			key_mode = 1;
+		    }
+		    else
+		    {
+			//Get value:
+			str2[ 0 ] = 0;
+			for( i = 0; i < 128; i++ )
+			{
+			    str2[ i ] = c;
+			    c = v3_getc( f );
+			    if( c == 0xD || c == 0xA || c == -1 ) 
+			    { 
+				str2[ i + 1 ] = 0; 
+				break; 
+			    }
+			}
+			profile_add_value( str1, str2, p );
+			key_mode = 0;
+		    }
+		}
+	    }
+	}
+	v3_close( f );
+    }
 }
 
 //WORKING WITH A STRINGS:

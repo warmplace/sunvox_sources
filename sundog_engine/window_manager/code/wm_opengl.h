@@ -46,9 +46,16 @@ void gl_init( void )
 #endif
 
     //Set palette:
-    unsigned short map[ 256 ];
-    long a;
     unsigned short const_alpha = 0xFFFF;
+    unsigned short map[ 256 ];
+    int a;
+#ifdef GRAYSCALE
+    for( a = 0; a < 256; a++ ) { map[ a ] = (unsigned short)( a << 8 ); if(map[a]) map[ a ] |= 0x00FF; }
+    glPixelMapusv( GL_PIXEL_MAP_I_TO_R, 256, map );
+    glPixelMapusv( GL_PIXEL_MAP_I_TO_G, 256, map );
+    glPixelMapusv( GL_PIXEL_MAP_I_TO_B, 256, map );
+    glPixelMapusv( GL_PIXEL_MAP_I_TO_A, 1, &const_alpha );
+#else
     for( a = 0; a < 256; a++ ) { map[ a ] = (unsigned short)( (a<<5)&224 ) << 8; if(map[a]) map[ a ] |= 0x1FFF; }
     glPixelMapusv( GL_PIXEL_MAP_I_TO_R, 256, map );
     for( a = 0; a < 256; a++ ) { map[ a ] = (unsigned short)( (a<<2)&224 ) << 8; if(map[a]) map[ a ] |= 0x1FFF; }
@@ -56,6 +63,8 @@ void gl_init( void )
     for( a = 0; a < 256; a++ ) { map[ a ] = (unsigned short)( (a&192)|32 ) << 8; if(map[a]) map[ a ] |= 0x3FFF; }
     glPixelMapusv( GL_PIXEL_MAP_I_TO_B, 256, map );
     glPixelMapusv( GL_PIXEL_MAP_I_TO_A, 1, &const_alpha );
+#endif
+
 }
 
 void gl_resize( void )

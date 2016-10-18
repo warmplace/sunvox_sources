@@ -4,16 +4,19 @@
     Copyright (C) 2002 - 2008 Alex Zolotov <nightradio@gmail.com>
 */
 
-#include "main/user_code.h"
 #include "filesystem/v3nus_fs.h"
 #include "time/timemanager.h"
 #include "sound/sound.h"
+#include "core/debug.h"
+#include "utils/utils.h"
 
 #include "sunvox_engine.h"
 
 #ifdef SUNVOX_GUI
-#include "sunvox_windows.h"
+#include "../sunvox/main/sunvox_windows.h"
 #endif
+
+//#define DEBUG_MESSAGES
 
 sunvox_engine *g_sunvox_engine = 0;
 
@@ -52,7 +55,7 @@ int g_synths_num = 0;
 
 void sunvox_select_current_playing_patterns( int first_sorted_pat, sunvox_engine *s );
 
-void sunvox_engine_init( int create_pattern, sunvox_engine *s )
+void sunvox_engine_init( int flags, sunvox_engine *s )
 {
     mem_set( s, sizeof( sunvox_engine ), 0 );
 
@@ -61,8 +64,11 @@ void sunvox_engine_init( int create_pattern, sunvox_engine *s )
 
     //Init psynth engine:
     s->net = (psynth_net*)MEM_NEW( HEAP_DYNAMIC, sizeof( psynth_net ) );
-    psynth_init( g_snd.freq, s->net );
-
+    int psynth_flags = 0;
+    if( flags & SUNVOX_FLAG_CREATE_SYNTHS )
+	psynth_flags |= PSYNTH_FLAG_CREATE_SYNTHS;
+    psynth_init( psynth_flags, g_snd.freq, s->net );
+    
     //Init synths:
     if( g_synths_num == 0 )
 	g_synths_num = sizeof( g_synths ) / sizeof( int );
@@ -78,34 +84,18 @@ void sunvox_engine_init( int create_pattern, sunvox_engine *s )
     for( int i = 0; i < MAX_PLAYING_PATS; i++ ) 
 	clean_std_effects_for_playing_pattern( i, s );
 
-    if( create_pattern )
+    if( flags & SUNVOX_FLAG_CREATE_PATTERN )
     {
-	sunvox_new_pattern( 32, 4, 0, 0, 0, s );
+	sunvox_new_pattern( 32, 4, 0, 0, s );
     }
     sunvox_sort_patterns( s );
     g_sunvox_engine = s;
 
-    s->copy_pats = (sunvox_pattern*)MEM_NEW( HEAP_DYNAMIC, 8 * sizeof( sunvox_pattern ) );
-    s->copy_pats_info = (sunvox_pattern_info*)MEM_NEW( HEAP_DYNAMIC, 8 * sizeof( sunvox_pattern_info ) );
-    mem_set( s->copy_pats, 8 * sizeof( sunvox_pattern ), 0 );
-    mem_set( s->copy_pats_info, 8 * sizeof( sunvox_pattern_info ), 0 );
-    s->copy_pats_num = 0;
-
     s->initialized = 1;
 }
 
-void sunvox_engine_close( sunvox_engine *s )
+void sunvox_close_copy_pats( sunvox_engine *s )
 {
-    sound_stream_stop();
-
-    g_sunvox_engine = 0;
-    if( s->pats )
-    {
-	for( int p = 0; p < s->pats_num; p++ )
-	    sunvox_remove_pattern( p, s );
-	mem_free( s->pats );
-	s->pats = 0;
-    }
     if( s->copy_pats )
     {
 	for( int p = 0; p < s->copy_pats_num; p++ )
@@ -115,6 +105,22 @@ void sunvox_engine_close( sunvox_engine *s )
 	mem_free( s->copy_pats_info );
 	s->copy_pats = 0;
 	s->copy_pats_info = 0;
+    }
+    s->copy_pats_num = 0;
+}
+
+void sunvox_engine_close( sunvox_engine *s )
+{
+    sound_stream_stop();
+
+    g_sunvox_engine = 0;
+    
+    if( s->pats )
+    {
+	for( int p = 0; p < s->pats_num; p++ )
+	    sunvox_remove_pattern( p, s );
+	mem_free( s->pats );
+	s->pats = 0;
     }
 
     if( s->pats_info ) 
@@ -128,6 +134,8 @@ void sunvox_engine_close( sunvox_engine *s )
 	mem_free( s->sorted_pats );
 	s->sorted_pats = 0;
     }
+
+    sunvox_close_copy_pats( s );
 
     if( s->song_name )
     {
@@ -202,7 +210,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
     sunvox_engine_init( 0, s );
     for( int sn = 1; sn < s->net->items_num; sn++ )
     {
-	if( s->net->items[ sn ].flags )
+	if( s->net->items[ sn ].flags & PSYNTH_FLAG_EXISTS )
 	    psynth_remove_synth( sn, s->net );
     }
 
@@ -213,7 +221,6 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 	int pat_channels = 0;
 	int pat_lines = 0;
 	int pat_ysize = 0;
-	int pat_synth = 0;
 	void *pat_icon = 0;
 	int pat_parent = -1;
 	int pat_flags = 0;
@@ -249,7 +256,6 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 	    if( g_block_id == 'PLIN' ) pat_lines = get_integer();
 	    if( g_block_id == 'PCHN' ) pat_channels = get_integer();
 	    if( g_block_id == 'PYSZ' ) pat_ysize = get_integer();
-	    if( g_block_id == 'PSYN' ) pat_synth = get_integer();
 	    if( g_block_id == 'PICO' ) { pat_icon = g_block_data; g_block_data = 0; }
 	    if( g_block_id == 'PPAR' ) pat_parent = get_integer();
 	    if( g_block_id == 'PFFF' ) pat_flags = get_integer();
@@ -258,8 +264,8 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 	    if( g_block_id == 'PEND' )
 	    {
 		//End of pattern. Create it:
-		int pat_num = sunvox_new_pattern( pat_lines, pat_channels, pat_synth, pat_x, pat_y, s );
-		if( pat_parent >= 0 ) 
+		int pat_num = sunvox_new_pattern( pat_lines, pat_channels, pat_x, pat_y, s );
+		if( pat_parent >= 0 )
 		{
 		    //It's a clone:
 		    sunvox_remove_pattern( pat_num, s );
@@ -347,7 +353,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 		//End of synth:
 		if( first_synth )
 		{
-		    //OUT is already created. Lets change him:
+		    //OUT is already created. Lets change it:
 		    s->net->items[ 0 ].finetune = s_finetune;
 		    s->net->items[ 0 ].relative_note = s_relative_note;
 		    s->net->items[ 0 ].x = s_x;
@@ -366,7 +372,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 		    {
 			//Empty synth:
 			psynth_remove_synth( s_num, s->net );
-			s->net->items[ s_num ].flags = 0xFF00;
+			s->net->items[ s_num ].flags = PSYNTH_FLAG_EXISTS | PSYNTH_FLAG_LAST; //Busy state
 		    }
 		    else
 		    {
@@ -419,7 +425,7 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 		g_block_data = 0;
 	    }
 	}
-	//Correcting patterns:
+	//Fix patterns:
 	for( int i = 0; i < s->pats_num; i++ )
 	{
 	    if( s->pats_info[ i ].flags & SUNVOX_PATTERN_FLAG_CLONE )
@@ -427,20 +433,34 @@ void sunvox_load_song( char *name, sunvox_engine *s )
 	    if( s->pats[ i ] == (sunvox_pattern*)1 )
 		s->pats[ i ] = 0;
 	}
-	//Correcting patterns:
 	for( int i = 0; i < s->net->items_num; i++ )
 	{
-	    if( s->net->items[ i ].flags == 0xFF00 )
+	    if( s->net->items[ i ].flags == ( PSYNTH_FLAG_EXISTS | PSYNTH_FLAG_LAST ) )
 		s->net->items[ i ].flags = 0;
 	}
 	v3_close( f );
     }
+
+#ifdef DEBUG_MESSAGES
+    sunvox_print_patterns( s );
+#endif
 
     sound_stream_play();
 }
 
 void sunvox_save_song( char *name, sunvox_engine *s )
 {
+    //Remove empty patterns from the end of the song:
+    int pats_num = s->pats_num;
+    for( int i = s->pats_num - 1; i >= 0; i-- )
+    {
+	if( s->pats[ i ] == 0 ) 
+	    pats_num--;
+	else
+	    break;
+    }
+    
+    //Save:
     V3_FILE f = v3_open( name, "wb" );
     if( f )
     {
@@ -453,7 +473,7 @@ void sunvox_save_song( char *name, sunvox_engine *s )
 	if( s->song_name )
 	    save_block( 'NAME', mem_get_size( s->song_name ), s->song_name, f );
 	//Save full table with patterns:
-	for( int i = 0; i < s->pats_num; i++ )
+	for( int i = 0; i < pats_num; i++ )
 	{
 	    if( s->pats[ i ] ) //If pattern is not empty:
 	    {
@@ -651,7 +671,7 @@ int sunvox_load_synth( int x, int y, char *name, sunvox_engine *s )
 void sunvox_save_synth( int synth_id, char *name, sunvox_engine *s )
 {
     psynth_net *net = s->net;
-    if( (unsigned)synth_id < (unsigned)net->items_num && net->items[ synth_id ].flags & PSYNTH_FLAG_EXISTS )
+    if( (unsigned)synth_id < (unsigned)net->items_num && ( net->items[ synth_id ].flags & PSYNTH_FLAG_EXISTS ) )
     {
 	V3_FILE f = v3_open( name, "wb" );
 	if( f )
@@ -967,7 +987,9 @@ void sunvox_sort_patterns( sunvox_engine *s )
     }
 }
 
-int sunvox_new_pattern( int lines, int channels, int synth_num, int x, int y, sunvox_engine *s )
+unsigned int g_icon_seed_counter = 0;
+
+int sunvox_new_pattern( int lines, int channels, int x, int y, sunvox_engine *s )
 {
     if( s->pats == 0 )
     {
@@ -1001,11 +1023,34 @@ int sunvox_new_pattern( int lines, int channels, int synth_num, int x, int y, su
     pat_info->y = y;
     s->pats_info[ p ].flags = 0;
     pat->ysize = 32;
+    
     //Create nice pattern icon :)
-    set_seed( (ulong)time_ticks() );
+    set_seed( (ulong)time_ticks() + g_icon_seed_counter );
+    g_icon_seed_counter++;
+    int mirror = pseudo_random();
     for( int i = 0; i < 16; i++ ) 
     {
 	pat->icon[ i ] = (uint16)pseudo_random() * 233;
+	if( mirror & 16 )
+	{
+	    if( mirror & 2 )
+	    {
+		if( i > 0 && ( pseudo_random() & 1 ) )
+		    pat->icon[ i ] = pat->icon[ i - 1 ] + 2;
+	    }
+	    else
+	    if( mirror & 4 )
+	    {
+		if( i > 0 && ( pseudo_random() & 1 ) )
+		    pat->icon[ i ] = pat->icon[ i - 1 ] << 1;
+	    }
+	    else
+	    if( mirror & 8 )
+	    {
+		if( i > 0 && ( pseudo_random() & 1 ) )
+		    pat->icon[ i ] = pat->icon[ i - 1 ] >> 1;
+	    }
+	}
 	for( int i2 = 0; i2 < 8; i2++ )
 	{
 	    if( pat->icon[ i ] & ( 1 << i2 ) )
@@ -1014,7 +1059,11 @@ int sunvox_new_pattern( int lines, int channels, int synth_num, int x, int y, su
 		pat->icon[ i ] &= ~( 0x8000 >> i2 );
 	}
     }
-    for( int i = 0; i < 8; i++ ) pat->icon[ 15 - i ] = pat->icon[ i ];
+    if( mirror & 1 )
+    {
+	for( int i = 0; i < 8; i++ ) pat->icon[ 15 - i ] = pat->icon[ i ];
+    }
+
     for( int i = 0; i < MAX_PATTERN_CHANNELS; i++ ) pat_info->channel_status[ i ] = 0xFF;
     return p;
 }
@@ -1055,30 +1104,39 @@ int sunvox_new_pattern_clone( int pat_num, int x, int y, sunvox_engine *s )
     return -1;
 }
 
-void sunvox_copy_pattern( int pat_num, sunvox_engine *s )
+void sunvox_copy_selected_patterns( sunvox_engine *s )
 {
-    if( pat_num >= 0 && pat_num < s->pats_num && s->pats[ pat_num ] )
+    int pats_to_copy = 0;
+    for( int i = 0; i < s->pats_num; i++ )
     {
-	if( s->copy_pats_num >= mem_get_size( s->copy_pats ) / (int)sizeof( sunvox_pattern ) )
+	if( s->pats[ i ] && s->pats_info[ i ].flags & SUNVOX_PATTERN_FLAG_SELECTED )
 	{
-	    s->copy_pats = (sunvox_pattern*)mem_resize( s->copy_pats, mem_get_size( s->copy_pats ) + sizeof( sunvox_pattern ) * 16 );
-	    s->copy_pats_info = (sunvox_pattern_info*)mem_resize( s->copy_pats_info, mem_get_size( s->copy_pats_info ) + sizeof( sunvox_pattern_info ) * 16 );
+	    pats_to_copy++;
 	}
-	sunvox_pattern *copy_pat = &s->copy_pats[ s->copy_pats_num ];
-	sunvox_pattern_info *copy_pat_info = &s->copy_pats_info[ s->copy_pats_num ];
-	if( copy_pat->data )
+    }
+    if( pats_to_copy > 0 )
+    {
+	sunvox_close_copy_pats( s );
+	s->copy_pats = (sunvox_pattern*)MEM_NEW( HEAP_DYNAMIC, pats_to_copy * sizeof( sunvox_pattern ) );
+	s->copy_pats_info = (sunvox_pattern_info*)MEM_NEW( HEAP_DYNAMIC, pats_to_copy * sizeof( sunvox_pattern_info ) );
+	s->copy_pats_num = pats_to_copy;
+	int p = 0;
+	for( int i = 0; i < s->pats_num; i++ )
 	{
-	    mem_free( copy_pat->data );
-	    copy_pat->data = 0;
+	    if( s->pats[ i ] && s->pats_info[ i ].flags & SUNVOX_PATTERN_FLAG_SELECTED )
+	    {
+		sunvox_pattern *copy_pat = &s->copy_pats[ p ];
+		sunvox_pattern_info *copy_pat_info = &s->copy_pats_info[ p ];
+		mem_copy( copy_pat, s->pats[ i ], sizeof( sunvox_pattern ) );
+		mem_copy( copy_pat_info, &s->pats_info[ i ], sizeof( sunvox_pattern_info ) );
+		if( s->pats[ i ]->data )
+		{
+		    copy_pat->data = (sunvox_note*)MEM_NEW( HEAP_DYNAMIC, mem_get_size( s->pats[ i ]->data ) );
+		    mem_copy( copy_pat->data, s->pats[ i ]->data, mem_get_size( s->pats[ i ]->data ) );
+		}
+		p++;
+	    }
 	}
-	mem_copy( copy_pat, s->pats[ pat_num ], sizeof( sunvox_pattern ) );
-	mem_copy( copy_pat_info, &s->pats_info[ pat_num ], sizeof( sunvox_pattern_info ) );
-	if( s->pats[ pat_num ]->data )
-	{
-	    copy_pat->data = (sunvox_note*)MEM_NEW( HEAP_DYNAMIC, mem_get_size( s->pats[ pat_num ]->data ) );
-	    mem_copy( copy_pat->data, s->pats[ pat_num ]->data, mem_get_size( s->pats[ pat_num ]->data ) );
-	}
-	s->copy_pats_num++;
     }
 }
 
@@ -1103,7 +1161,7 @@ void sunvox_paste_patterns( int x, int y, sunvox_engine *s )
 
 	    int pat_num = sunvox_new_pattern( 
 		copy_pat->lines, 
-		copy_pat->channels, 0, 
+		copy_pat->channels,
 		0, 0, 
 		s );
 	    if( copy_pat_info->flags & SUNVOX_PATTERN_FLAG_CLONE )
@@ -1156,6 +1214,19 @@ void sunvox_remove_pattern( int pat_num, sunvox_engine *s )
     }
 }
 
+void sunvox_print_patterns( sunvox_engine *s )
+{
+#ifndef PALMOS
+    for( int i = 0; i < s->pats_num; i++ )
+    {
+	printf( "%03d ptr:%08x x:%04d y:%04d ", i, (int)s->pats[ i ], s->pats_info[ i ].x, s->pats_info[ i ].y );
+	if( s->pats[ i ] == 0 ) printf( "EMPTY " );
+	if( s->pats_info[ i ].flags & SUNVOX_PATTERN_FLAG_CLONE ) printf( "CLONE (parent %d) ", s->pats_info[ i ].parent_num );
+	printf( "\n" );
+    }
+#endif
+}
+
 void sunvox_optimize_patterns( sunvox_engine *s )
 {
     int i, a;
@@ -1170,7 +1241,7 @@ void sunvox_optimize_patterns( sunvox_engine *s )
 	    if( h_size )
 	    {
 		//Remove hole: (offset - h; size - h_size)
-		for( a = h; a < h + h_size; a++ )
+		for( a = h; a < s->pats_num; a++ )
 		{
 		    if( a + h_size < s->pats_num )
 		    {
@@ -1213,12 +1284,16 @@ void sunvox_optimize_patterns( sunvox_engine *s )
 	    }
 	    h = i + 1;
 	    h_size = 0;
-	}
+	} //if( s->pats[ i ] )...
 	else
 	{
 	    h_size++;
 	}
     }
+
+#ifdef DEBUG_MESSAGES    
+    sunvox_print_patterns( s );
+#endif
 }
 
 void sunvox_pattern_set_number_of_channels( int pat_num, int cnum, sunvox_engine *s )
@@ -1509,7 +1584,7 @@ void sunvox_handle_command(
 	    net->channel_id = ( pat_num << 16 ) | channel_num;
 	    {
 		int period = 7680 - net->note * 64 - net->items[ synth_num ].finetune / 4 - net->items[ synth_num ].relative_note * 64;
-		if( period < 0 ) period = 0;
+		//if( period < 0 ) period = 0;
 		if( period >= 7680 ) period = 7680 - 1;
 		if( eff ) eff->cur_period = period;
 		net->period_ptr = period * 4;
@@ -1707,7 +1782,7 @@ void sunvox_handle_command(
 		if( eff )
 		{
 		    eff->tone_porta = 1;
-		    eff->target_period = 0;
+		    eff->target_period = -7680;
 		    if( ctl_val )
 			eff->porta_speed = ctl_val;
 		}
@@ -1791,7 +1866,7 @@ void sunvox_handle_std_effects(
 	    if( eff->cur_period < eff->target_period ) eff->cur_period = eff->target_period;
 	}
 	int period = eff->cur_period;
-	if( period < 0 ) period = 0;
+	//if( period < 0 ) period = 0;
 	if( period >= 7680 ) period = 7680 - 1;
 	net->period_ptr = period * 4;
 	if( net->items[ synth_num ].synth )
@@ -1852,6 +1927,8 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 
     int ptr = 0;
     int one_tick = 0;
+
+    psynth_cpu_usage_clean( s->net );
 
 //##########################################
 //######## [ Visualization frames ] ########
@@ -2023,12 +2100,50 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 
 		if( rewind != -999999 )
 		{
-		    sunvox_note snote;
+		    //Notes off:
+		    /*sunvox_note snote;
 		    snote.vel = 0;
 		    snote.ctl = 0;
 		    snote.ctl_val = 0;
 		    snote.note = NOTECMD_ALL_NOTES_OFF;
-		    sunvox_handle_command( &snote, s->net, -1, -1, 0, s );
+		    sunvox_handle_command( &snote, s->net, -1, -1, 0, s );*/
+		    for( int i = 0; i < MAX_PLAYING_PATS; i++ )
+		    {
+			if( s->cur_playing_pats[ i ] == -1 ) break;
+			if( (unsigned)s->cur_playing_pats[ i ] < (unsigned)s->sorted_pats_num )
+			{
+			    int pat_num = s->sorted_pats[ s->cur_playing_pats[ i ] ];
+			    if( pat_num < s->pats_num && s->pats[ pat_num ] )
+			    {
+				int pat_num = s->sorted_pats[ s->cur_playing_pats[ i ] ];
+				sunvox_pattern_info *pat_info = &s->pats_info[ pat_num ];
+				for( int a = 0; a < MAX_PATTERN_CHANNELS; a++ )
+				{
+				    if( pat_info->channel_status[ a ] < 128 )
+				    {
+					int snum = pat_info->channel_synth[ a ];
+					if( snum >= 0 && snum < s->net->items_num )
+					{
+					    psynth_net_item *synth = &s->net->items[ snum ];
+					    if( synth->synth )
+					    {
+						s->net->channel_id = ( pat_num << 16 ) | a;
+						s->net->synth_channel = pat_info->channel_status[ a ] & 127;
+					        synth->synth( 
+						    synth->data_ptr,
+						    snum,
+						    0, 0, 0,
+						    COMMAND_NOTE_OFF,
+						    s->net );
+					    }
+					    pat_info->channel_status[ a ] |= 128;
+					}
+				    }
+				}
+			    }
+			}
+		    }
+		    //Rewind:
 		    s->time_counter = rewind;
 		    sunvox_select_current_playing_patterns( 0, s );
 		    for( int i = 0; i < MAX_PLAYING_PATS; i++ ) 
@@ -2190,6 +2305,8 @@ void sunvox_render_piece_of_sound( void *buffer, int buffer_type, int channels, 
 	    break;
 	}
     } //...end of main loop.
+
+    psynth_cpu_usage_recalc( s->net );
 }
 
 int sunvox_frames_get_ticks( sunvox_engine *s )

@@ -10,7 +10,6 @@ number of ticks in one note = speed;
 */
 
 #define MAX_OCTAVES		10
-#define MAX_SYNTHS		64
 #define MAX_NOTES		( MAX_OCTAVES * 12 )
 #define MAX_PLAYING_PATS	64
 #define MAX_USER_COMMANDS	64
@@ -91,8 +90,8 @@ struct sunvox_engine
     int		    time_counter;   //Number of current tick
     int		    speed_counter; 
 
-    int		    bpm;
-    int		    speed;
+    int		    bpm; //Beats per minute (One beat = 4 lines on speed 6)
+    int		    speed; //Ticks per line
 
     char	    *song_name;
 
@@ -140,7 +139,10 @@ struct sunvox_engine
 extern sunvox_engine *g_sunvox_engine;
 extern int g_cancel_export_to_wav;
 
-void sunvox_engine_init( int create_pattern, sunvox_engine *s );
+#define SUNVOX_FLAG_CREATE_PATTERN	1
+#define SUNVOX_FLAG_CREATE_SYNTHS	2
+
+void sunvox_engine_init( int flags, sunvox_engine *s );
 void sunvox_engine_close( sunvox_engine *s );
 
 void sunvox_load_song( char *name, sunvox_engine *s );
@@ -152,11 +154,12 @@ void sunvox_export_to_wav( char *name, int mode, void (*status_handler)( void*, 
 
 void sunvox_sort_patterns( sunvox_engine *s );
 
-int sunvox_new_pattern( int lines, int channels, int synth_num, int x, int y, sunvox_engine *s );
+int sunvox_new_pattern( int lines, int channels, int x, int y, sunvox_engine *s );
 int sunvox_new_pattern_clone( int pat_num, int x, int y, sunvox_engine *s );
-void sunvox_copy_pattern( int pat_num, sunvox_engine *s );
+void sunvox_copy_selected_patterns( sunvox_engine *s );
 void sunvox_paste_patterns( int x, int y, sunvox_engine *s );
 void sunvox_remove_pattern( int pat_num, sunvox_engine *s );
+void sunvox_print_patterns( sunvox_engine *s );
 void sunvox_optimize_patterns( sunvox_engine *s );
 void sunvox_pattern_set_number_of_channels( int pat_num, int cnum, sunvox_engine *s );
 void sunvox_pattern_set_number_of_lines( int pat_num, int lnum, sunvox_engine *s );

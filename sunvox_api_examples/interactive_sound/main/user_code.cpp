@@ -6,10 +6,10 @@
 
 #include "main/user_code.h"
 
-#include "sunvox_engine.h"
+#include "../../../sunvox_engine/sunvox_engine.h"
 
 char *user_window_name = "SunVox API Example #1 (" __DATE__ ")";
-char *user_config_file_name = "sunvox_config.ini";
+char *user_profile_name = "sunvox_config.ini";
 char *user_debug_log_file_name = "sunvox_log.txt";
 int user_window_xsize = 240;
 int user_window_ysize = 240;
@@ -36,7 +36,7 @@ int my_desktop_handler( sundog_event *evt, window_manager *wm )
     {
 	case EVT_AFTERCREATE:
 	    //Init sound engine:
-	    sunvox_engine_init( 1, &g_sv );
+	    sunvox_engine_init( 0, &g_sv );
 	    g_snd.user_data = (void*)&g_sv;
 	    
 	    //Load song:

@@ -1,5 +1,5 @@
 ifeq ($(MAKECMDGOALS),)
-    $(error No target selected. Please type "make palm", "make linux" or "make wince")
+    $(error No target selected. Please type "make palm", "make linux", "make win32" or "make wince")
     exit
 endif
 
@@ -8,16 +8,32 @@ endif
 ## ------------------------------------------ ##
 
 ifeq ($(MAKECMDGOALS),palm)
-    MCC = m68k-palmos-gcc -O2
-    CC = arm-elf-gcc -O3
+    MCC = m68k-palmos-gcc $(CFLAGS)
+    CC = arm-elf-gcc $(CFLAGS)
+    TARGET_DEFINES = \
+	-DARCH_ARM \
+	-DPALMOS
 endif
 ifeq ($(MAKECMDGOALS),linux)
-    CC = gcc -O3 -s
-    CXX = gcc -O3 -s
+    CC = gcc $(CFLAGS)
+    CXX = gcc $(CFLAGS)
+    TARGET_DEFINES = \
+	-DARCH_X86 \
+	-DLINUX
+endif
+ifeq ($(MAKECMDGOALS),win32)
+    CC = i686-pc-mingw32-gcc $(CFLAGS) -fno-exceptions
+    CXX = i686-pc-mingw32-gcc $(CFLAGS) -fno-exceptions
+    TARGET_DEFINES = \
+	-DARCH_X86 \
+	-DWIN
 endif
 ifeq ($(MAKECMDGOALS),wince)
-    CC = arm-wince-mingw32ce-gcc -O3 -s -fno-exceptions
-    CXX = arm-wince-mingw32ce-gcc -O3 -s -fno-exceptions
+    CC = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions
+    CXX = arm-wince-mingw32ce-gcc $(CFLAGS) -fno-exceptions
+    TARGET_DEFINES = \
+	-DARCH_ARM \
+	-DWINCE
 endif
 
 ## ------------------------------------------ ##
@@ -53,14 +69,20 @@ FS_OBJS = v3nus_fs.o
 TIME_OBJS = timemanager.o
 UTILS_OBJS = utils.o
 SOUND_INCS = $(SOUND)sound.h
-SOUND_OBJS = sound_player.o sound_sndout.o
+ifneq ($(SUNDOG_NOSOUND),true)
+    SOUND_OBJS = sound_player.o sound_sndout.o
+endif
 WM_INCS = $(CWM)wm_win32.h $(CWM)wm_wince.h $(CWM)wm_opengl.h $(CWM)wm_directx.h $(CWM)wm_framebuffer.h $(CWM)wm_palmos.h $(CWM)wm_unixgraphics.h $(CWM)wm_unixgraphics_sdl.h $(WM)wmanager.h $(WM)struct.h
-WM_OBJS = wmanager.o wbd.o handlers.o devrgn.o
-MAIN_OBJS = main.o
+ifneq ($(SUNDOG_NOWINDOWS),true)
+    WM_OBJS = wmanager.o wbd.o handlers.o devrgn.o
+endif
+ifneq ($(SUNDOG_NOMAIN),true)
+    MAIN_OBJS = main.o
+endif
 OBJECTS = $(MEMORY_OBJS) $(DEBUG_OBJS) $(FS_OBJS) $(TIME_OBJS) $(UTILS_OBJS) $(MAIN_OBJS) $(SOUND_OBJS) $(WM_OBJS)
 
 # Global defines:
-DEFINES = $(SUNDOG_DEFINES) -I$(SUNDOG)
+DEFINES = $(TARGET_DEFINES) $(SUNDOG_DEFINES) -I$(SUNDOG)
 
 # PalmOS defines:
 ifeq ($(MAKECMDGOALS),palm)
@@ -70,6 +92,11 @@ ifeq ($(MAKECMDGOALS),palm)
     ARM_PALM_FILES = $(SUNDOG)various/palmos/palm_functions.cpp $(SUNDOG)various/palmos/PalmTypes.h $(SUNDOG)various/palmos/DebugMgr.h $(SUNDOG)various/palmos/palm_functions.h
     ARM_PALM_OBJS = palm_functions.o
     OBJECTS += $(ARM_PALM_OBJS)
+endif
+
+# Win32 defines:
+ifeq ($(MAKECMDGOALS),win32)
+    DEFINES += -Iresources/
 endif
 
 # WinCE defines:
@@ -83,7 +110,7 @@ endif
 
 .SECONDEXPANSION:
 linux: $$(OBJECTS)
-	$(CC) $(DEFINES) -o $(APPNAME) $(OBJECTS) $(LIBS)
+	$(CC) $(LDFLAGS) -o $(APPNAME) $(OBJECTS) $(LIBS)
 
 .SECONDEXPANSION:
 palm: $$(OBJECTS)
@@ -118,9 +145,18 @@ palm_functions.o: $(ARM_PALM_FILES)
 	$(CC) $(DEFINES) -c $(SUNDOG)various/palmos/palm_functions.cpp
 
 .SECONDEXPANSION:
+win32: $$(OBJECTS)
+ifneq ($(SUNDOG_NOWINDOWS),true)
+	i686-pc-mingw32-windres resources/win_res.rc win_res.o
+	$(CC) $(LDFLAGS) -mwindows -o $(APPNAME).exe $(OBJECTS) win_res.o $(LIBS)
+else
+	$(CC) $(LDFLAGS) -o $(APPNAME).exe $(OBJECTS) $(LIBS)
+endif
+
+.SECONDEXPANSION:
 wince: $$(OBJECTS)
-	arm-wince-mingw32ce-windres resources/wince_res.rc wince_res.o
-	$(CC) $(DEFINES) -o $(APPNAME).exe $(OBJECTS) wince_res.o $(LIBS)
+	arm-wince-mingw32ce-windres resources/win_res.rc win_res.o
+	$(CC) $(LDFLAGS) -o $(APPNAME).exe $(OBJECTS) win_res.o $(LIBS)
 
 ## ------------------------------------------ ##
 ## SunDog engine rules: (main)                ##

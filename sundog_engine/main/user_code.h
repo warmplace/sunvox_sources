@@ -6,9 +6,7 @@
 #include "sound/sound.h"
 #include "window_manager/wmanager.h"
 #include "time/timemanager.h"
-
-extern int g_frame;
-extern int g_skip_frames;
+#include "utils/utils.h"
 
 void user_init( window_manager *wm );
 int user_event_handler( sundog_event *evt, window_manager *wm );

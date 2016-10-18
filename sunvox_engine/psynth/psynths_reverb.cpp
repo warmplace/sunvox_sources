@@ -27,11 +27,25 @@
 #include "psynth.h"
 
 #if defined(STYPE_FLOATINGPOINT) && defined(ARCH_X86)
+    #include <math.h>
     static inline float
     undenormalise( volatile float s )
     {
-	s += 9.8607615E-32f;
-	return s - 9.8607615E-32f;
+        //Variant 1: (not working on latest GCC)
+	//s += 9.8607615E-32f;
+	//return s - 9.8607615E-32f;
+
+        //Variant 3: (not working on latest GCC)
+        //*(unsigned int *)&s &= 0x7fffffff;
+        //return s;
+
+        //Variant 2:
+	float absx = fabs( s );
+	//very small numbers fail the first test, eliminating denormalized numbers
+	//(zero also fails the first test, but that is OK since it returns zero.)
+	//very large numbers fail the second test, eliminating infinities.
+	//Not-a-Numbers fail both tests and are eliminated.
+	return ( absx > 1e-15 && absx < 1e15 ) ? s : 0.0F;
     }
 #else
     #define undenormalise( s ) s
@@ -156,6 +170,7 @@ void clean_filters( SYNTH_DATA *data )
     {
 	for( int i2 = 0; i2 < MAX_COMB_BUF_SIZE; i2++ )
 	    data->combs[ i ].buf[ i2 ] = 0;
+	data->combs[ i ].filterstore = 0;
     }
     for( int i = 0; i < data->allpasses_num * 2; i++ )
     {
@@ -402,10 +417,10 @@ int SYNTH_HANDLER(
 			comb_filter *f = &data->combs[ a ];
 			STYPE_CALC f_out = f->buf[ f->buf_ptr ];
 #ifdef STYPE_FLOATINGPOINT
-			f_out = undenormalise( f_out );
+			//f_out = undenormalise( f_out );
 			f->filterstore = ( f_out * f->damp1 ) + ( f->filterstore * f->damp2 );
 			f->filterstore = undenormalise( f->filterstore );
-			f->buf[ f->buf_ptr ] = input + ( f->filterstore * f->feedback );
+			f->buf[ f->buf_ptr ] = undenormalise( input + ( f->filterstore * f->feedback ) );
 #else
 			STYPE_CALC f_v;
 			f->filterstore = ( f_out * f->damp1 + f->filterstore * f->damp2 ) / 256;

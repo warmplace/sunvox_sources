@@ -6,7 +6,7 @@
 
 #include "../core.h"
 #include "../../memory/memory.h"
-#include "../../window_manager/wmanager.h"
+#include "../../utils/utils.h"
 #include "../debug.h"
 #include <stdarg.h>
 

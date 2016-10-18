@@ -6,6 +6,7 @@
 //SunDog Engine include files:
 #include "core/core.h"
 #include "memory/memory.h"
+#include "time/timemanager.h"
 #ifdef SUNVOX_GUI
 #include "window_manager/wmanager.h"
 #endif
@@ -92,13 +93,16 @@ struct psynth_control
     int		    type;
 };
 
-//One item of external net:
-#define PSYNTH_FLAG_EXISTS		1
-#define PSYNTH_FLAG_OUTPUT		2
-#define PSYNTH_FLAG_GENERATOR		8
-#define PSYNTH_FLAG_EFFECT		16
-#define PSYNTH_FLAG_RENDERED		32
-#define PSYNTH_FLAG_INITIALIZED		64
+//One item of the sound net:
+#define PSYNTH_FLAG_EXISTS		( 1 << 0 )
+#define PSYNTH_FLAG_OUTPUT		( 1 << 1 )
+#define PSYNTH_FLAG_GENERATOR		( 1 << 3 )
+#define PSYNTH_FLAG_EFFECT		( 1 << 4 )
+#define PSYNTH_FLAG_RENDERED		( 1 << 5 )
+#define PSYNTH_FLAG_INITIALIZED		( 1 << 6 )
+#define PSYNTH_FLAG_MUTE		( 1 << 7 )
+#define PSYNTH_FLAG_SOLO		( 1 << 8 )
+#define PSYNTH_FLAG_LAST		( 1 << 30 )
 #define PSYNTH_MAX_CHANNELS		8
 #define PSYNTH_MAX_CONTROLLERS		17
 struct psynth_net_item
@@ -119,6 +123,12 @@ struct psynth_net_item
 
     int		    x, y;   //In percents (0..1024)
     int		    instr_num;
+
+#ifdef HIRES_TIMER
+    int             cpu_usage; //In percents (0..100)
+    int             cpu_usage_ticks;
+    int             cpu_usage_samples;
+#endif
 
     //Standart properties:
     int		    finetune;	//-256...256
@@ -146,7 +156,7 @@ struct psynth_net_item
     int		    *chunk_flags;
 };
 
-//External sound net (created by host):
+//Sound net (created by host):
 #define MAX_PERIOD_PTR			30720
 struct psynth_net
 {
@@ -161,15 +171,22 @@ struct psynth_net
     int			tick_size;	//One tick size (256 - one sample)
     int			ticks_per_line;
     int			global_volume;	//256 - normal volume (1.0)
+    int			all_synths_muted;
+#ifdef HIRES_TIMER
+    int                 cpu_usage_enable;
+    int                 cpu_usage; //In percents (0..100)
+#endif
     
     //Additional parameters for particular synth:
     
-    int			note;		//In. (write to synth)
+    int			note;		//In. Note number without finetune and relative note. (write to synth)
     int			velocity;	//In. 0..256
     ulong		channel_id;	//In. 0xAAAABBBB: AAAA - pattern num; BBBB - pattern channel
     int			synth_channel;	//In.
-    int			period_ptr;	//In. Value of note with finetune. 256 - one note. 256 * 12 - octave
-					//    MAX_PERIOD_PTR - note 0; 0 - note 120
+    int			period_ptr;	//In. Value of note with finetune and relative note. 
+					//    256 - one note. 256 * 12 - octave
+					//    MAX_PERIOD_PTR - note 0 (lowest possible frequency); 
+					//    0 - note 120; -1 - note 121 (with more high frequency)
 
     int			ctl_num;	//In. Number of controller
     int			ctl_val;	//In. Controller value (0..65535)

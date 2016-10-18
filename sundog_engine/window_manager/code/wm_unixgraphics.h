@@ -71,8 +71,8 @@ int device_start( char *windowname, int xsize, int ysize, int flags, window_mana
     ysize = 512;
 #endif
 #ifdef X11
-    if( get_option( OPT_SCREENX ) != -1 ) xsize = get_option( OPT_SCREENX );
-    if( get_option( OPT_SCREENY ) != -1 ) ysize = get_option( OPT_SCREENY );
+    if( profile_get_int_value( KEY_SCREENX, 0 ) != -1 ) xsize = profile_get_int_value( KEY_SCREENX, 0 );
+    if( profile_get_int_value( KEY_SCREENY, 0 ) != -1 ) ysize = profile_get_int_value( KEY_SCREENY, 0 );
 #endif
     wm->screen_xsize = xsize;
     wm->screen_ysize = ysize;
@@ -395,7 +395,18 @@ long device_event_handler( window_manager *wm )
     else
     {
 	//There are no X11 events
-	if( wm->events_count == 0 ) sched_yield(); //And no WM events
+	if( wm->events_count == 0 ) 
+	{
+	    //And no WM events
+	    if( wm->flags & WIN_INIT_FLAG_FULL_CPU_USAGE )
+	    {
+		sched_yield();
+	    }
+	    else
+	    {
+		small_pause( 1 );
+	    }
+	}
     }
     if( wm->exit_request ) return 1;
     return 0;

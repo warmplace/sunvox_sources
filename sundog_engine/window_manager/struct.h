@@ -72,8 +72,9 @@
 #define CW COLORMASK
 #define CB CLEARCOLOR
 
-#define WIN_INIT_FLAG_SCALABLE	    1
-#define WIN_INIT_FLAG_NOBORDER	    2
+#define WIN_INIT_FLAG_SCALABLE	    	1
+#define WIN_INIT_FLAG_NOBORDER	    	2
+#define WIN_INIT_FLAG_FULL_CPU_USAGE	4
 
 enum {
     EVT_NULL = 0,
@@ -156,8 +157,9 @@ enum {
 #define SCROLLBAR_SIZE	    wm->scrollbar_size
 #define BUTTON_YSIZE( wm )  ( char_y_size( wm ) + 8 + 4 )
 #define BUTTON_XSIZE( wm )  wm->button_xsize
+#define INTERELEMENT_SPACE  2
 
-#define DOUBLE_CLICK_PERIOD 250
+#define DOUBLE_CLICK_PERIOD 200
 
 #define WIN_MAX_COMS	    8
 #define CEND		    40000
@@ -264,6 +266,8 @@ struct sundog_timer
 
 struct window_manager
 {
+    int		    flags;
+    
     long            events_count;	    //number of events to execute
     long	    current_event_num;
     sundog_event    events[ EVENTS ];
@@ -283,6 +287,8 @@ struct window_manager
 
     int		    screen_lock_counter;
     int	            screen_is_active;
+    
+    int		    frame_counter;
 
     sundog_font	    *user_font;
 
@@ -292,8 +298,18 @@ struct window_manager
     COLOR	    yellow;
     COLOR	    green;
     COLOR	    red;
+    COLOR	    dialog_color;
+    COLOR	    decorator_color;
+    COLOR	    decorator_border;
+    COLOR	    button_color;
+    COLOR	    menu_color;
+    COLOR	    selection_color;
+    COLOR	    text_background;
+    COLOR	    list_background;
+    COLOR	    scroll_color;
+    COLOR	    scroll_background_color;
 
-    //Some standart window decoration properties: =============================================================
+    //Standart window decoration properties: ==================================================================
     int		    decor_border_size;
     int		    decor_header_size;
     int		    scrollbar_size;
